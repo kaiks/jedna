@@ -1,0 +1,21 @@
+# Elimination bracket tournament configuration
+
+agents:
+  Ruby1: './simple_agent.rb'
+  Python1: 'python3 simple_agent.py'
+  Ruby2: './smart_agent.rb'
+  Python2: 'python3 simple_agent.py'
+
+tournament_type: elimination-bracket
+
+# More games per round for elimination to reduce randomness
+games_per_round: 20
+
+# No timeouts for this tournament
+timeouts:
+  turn_timeout: 0    # No turn limit
+  game_timeout: 0    # No game limit
+
+output:
+  stdout: true
+  log_results_file: elimination_results.txt

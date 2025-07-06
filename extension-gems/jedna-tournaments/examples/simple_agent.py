@@ -27,7 +27,7 @@ class SimpleAgent:
             action = {'action': 'play', 'card': card}
             
             # Add color for wild cards
-            if card.startswith('wd'):
+            if card == 'w' or card.startswith('wd'):
                 # Pick the color we have most of
                 colors = [c[0] for c in state['hand'] if c[0] != 'w']
                 if colors:

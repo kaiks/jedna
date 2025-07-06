@@ -29,7 +29,7 @@ class SimpleAgent
       action = { 'action' => 'play', 'card' => card }
       
       # Add color for wild cards
-      if card.start_with?('wd')
+      if card == 'w' || card.start_with?('wd')
         # Pick the color we have most of
         colors = state['hand'].map { |c| c[0] }.reject { |c| c == 'w' }
         color_counts = colors.tally
