@@ -1,0 +1,7 @@
+source 'https://rubygems.org'
+
+# Specify your gem's dependencies in jedna_tournaments.gemspec
+gemspec
+
+# Use local jedna gem during development
+gem 'jedna', path: '../..'

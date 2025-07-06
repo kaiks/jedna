@@ -20,6 +20,9 @@ require_relative "jedna/interfaces/repository"
 # Thread safety (optional)
 require_relative "jedna/thread_safe_game"
 
+# Game state serialization
+require_relative "jedna/game_state_serializer"
+
 module Jedna
   class Error < StandardError; end
 end

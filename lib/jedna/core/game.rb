@@ -36,6 +36,7 @@ module Jedna
       @renderer = renderer || Jedna::TextRenderer.new
       @repository = repository || Jedna::NullRepository.new
       @on_game_ended = nil  # Simple hook for game ended event
+      @before_player_turn_hooks = []  # Hooks called before each player's turn
       db_create_game
     end
   
@@ -46,6 +47,11 @@ module Jedna
     # Simple hook setter - allows external code to be notified when game ends
     def on_game_ended(&block)
       @on_game_ended = block
+    end
+    
+    # Hook setter - allows external code to be notified before each player's turn
+    def before_player_turn(&block)
+      @before_player_turn_hooks << block
     end
   
     def start_game(stack = nil, first_player = nil)
@@ -133,6 +139,16 @@ module Jedna
       notify_top_card pass
       show_player_cards @players[0]
       @already_picked = false
+      
+      # Call before_player_turn hooks
+      @before_player_turn_hooks.each do |hook|
+        begin
+          hook.call(self, @players[0])
+        rescue => e
+          # Silently catch exceptions to not disrupt the game
+          debug "Error in before_player_turn hook: #{e.message}"
+        end
+      end
     end
   
     def show_player_cards(player)
