@@ -39,8 +39,8 @@ class ConfiguredTournamentRunner
     # Timeout configuration (0 or nil means no timeout)
     @turn_timeout = @config.dig('timeouts', 'turn_timeout') || 1.0
     @game_timeout = @config.dig('timeouts', 'game_timeout') || 10.0
-    @turn_timeout = nil if @turn_timeout == 0
-    @game_timeout = nil if @game_timeout == 0
+    @turn_timeout = nil if @turn_timeout.zero?
+    @game_timeout = nil if @game_timeout.zero?
 
     @serializer = Jedna::GameStateSerializer.new
     @results = {}
@@ -302,7 +302,7 @@ class ConfiguredTournamentRunner
         # Notify agents
         scores = {}
         game.players.each { |p| scores[p.identity.id] = p.hand.value }
-        player_agent_map.each do |_, agent|
+        player_agent_map.each_value do |agent|
           agent.notify_game_end(winner_id, scores)
         rescue StandardError
           nil
@@ -401,14 +401,10 @@ class ConfiguredTournamentRunner
         @current_game_log << "#{top_card};#{player_name};#{hand_cards};pass"
         game.turn_pass
       end
-    rescue StandardError => e
+    rescue StandardError
       @current_game_log << "#{top_card};#{player_name};#{hand_cards};error"
-      if game.instance_variable_get(:@already_picked)
-        game.turn_pass
-      else
-        game.pick_single
-        game.turn_pass
-      end
+      game.pick_single unless game.instance_variable_get(:@already_picked)
+      game.turn_pass
     end
   end
 
@@ -478,7 +474,7 @@ class ConfiguredTournamentRunner
 
     # Write to the configured game log file in real-time (already open)
     # This method is called at the end to ensure all logs are flushed
-    @game_log.flush if @game_log
+    @game_log&.flush
 
     log_output "Game logs saved to: #{@game_log_file}"
   end
@@ -528,7 +524,7 @@ class ConfiguredTournamentRunner
         end
 
         # Mistake 2: Not playing action cards when opponent low
-        next unless turn_idx > 0 && action != 'draw'
+        next unless turn_idx.positive? && action != 'draw'
 
         prev_turn = game_log[turn_idx - 1]
         next unless prev_turn && !prev_turn.include?(smart_agent_name)
@@ -579,9 +575,9 @@ class ConfiguredTournamentRunner
 end
 
 # Run if called directly
-if __FILE__ == $0
+if __FILE__ == $PROGRAM_NAME
   if ARGV.empty?
-    puts "Usage: #{$0} <config.yaml>"
+    puts "Usage: #{$PROGRAM_NAME} <config.yaml>"
     puts "\nExample config.yaml:"
     puts 'agents:'
     puts "  SimpleRuby: './simple_agent.rb'"

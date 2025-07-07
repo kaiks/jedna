@@ -16,32 +16,32 @@
 # Example: ruby analyze_results.rb 570 1000 0.95
 
 def wilson_confidence_interval(wins, total_games, confidence = 0.95)
-  return [0, 0] if total_games == 0
-  
+  return [0, 0] if total_games.zero?
+
   z_scores = {
     0.90 => 1.645,
     0.95 => 1.96,
     0.99 => 2.576
   }
   z = z_scores[confidence] || 1.96
-  
+
   p_hat = wins.to_f / total_games
-  
+
   # Wilson score interval
   denominator = 1 + z**2 / total_games
   center = (p_hat + z**2 / (2 * total_games)) / denominator
   margin = z * Math.sqrt(p_hat * (1 - p_hat) / total_games + z**2 / (4 * total_games**2)) / denominator
-  
+
   lower = [center - margin, 0].max
   upper = [center + margin, 1].min
-  
+
   [lower, upper]
 end
 
 # Parse command line arguments
 if ARGV.length < 2
-  puts "Usage: ruby analyze_results.rb <wins> <total_games> [confidence_level]"
-  puts "Example: ruby analyze_results.rb 570 1000 0.95"
+  puts 'Usage: ruby analyze_results.rb <wins> <total_games> [confidence_level]'
+  puts 'Example: ruby analyze_results.rb 570 1000 0.95'
   exit 1
 end
 
@@ -50,7 +50,7 @@ total_games = ARGV[1].to_i
 confidence = ARGV[2]&.to_f || 0.95
 
 if wins > total_games
-  puts "Error: Wins cannot exceed total games"
+  puts 'Error: Wins cannot exceed total games'
   exit 1
 end
 
@@ -63,13 +63,13 @@ intervals = {
   0.99 => wilson_confidence_interval(wins, total_games, 0.99)
 }
 
-puts "Tournament Results Analysis"
-puts "=" * 50
+puts 'Tournament Results Analysis'
+puts '=' * 50
 puts "Games played: #{total_games}"
 puts "Games won: #{wins}"
 puts "Observed win rate: #{win_rate}%"
 puts
-puts "Confidence Intervals:"
+puts 'Confidence Intervals:'
 intervals.each do |conf, (lower, upper)|
   lower_pct = (lower * 100).round(1)
   upper_pct = (upper * 100).round(1)

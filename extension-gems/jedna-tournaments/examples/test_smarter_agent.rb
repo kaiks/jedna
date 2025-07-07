@@ -58,9 +58,9 @@ class TestSmarterAgent < Minitest::Test
   def test_wild_card_conservation
     # Case: Should not waste wd4 when other options are available
     action = simulate_agent_decision(
-      hand = %w[b2 b5 b5 b6 wd4 y3],
-      top_card = 'g8',
-      playable_cards = ['wd4'] # Only wd4 is playable
+      %w[b2 b5 b5 b6 wd4 y3],
+      'g8',
+      ['wd4'] # Only wd4 is playable
     )
 
     assert_equal 'play', action['action']
@@ -68,9 +68,9 @@ class TestSmarterAgent < Minitest::Test
 
     # But when we have other options...
     action = simulate_agent_decision(
-      hand = %w[b2 b5 b5 b6 wd4 y3],
-      top_card = 'b8',
-      playable_cards = %w[b2 b5 b6 wd4]
+      %w[b2 b5 b5 b6 wd4 y3],
+      'b8',
+      %w[b2 b5 b6 wd4]
     )
 
     assert_equal 'play', action['action']
@@ -81,10 +81,10 @@ class TestSmarterAgent < Minitest::Test
     # Case: b9 is isolated (no other 9s), br is action card
     # Should prefer b9 over br when opponent has many cards
     action = simulate_agent_decision(
-      hand = ['b+2', 'b9', 'br', 'g0', 'g6', 'g6', 'y1', 'y8'],
-      top_card = 'b6',
-      playable_cards = ['b+2', 'b9', 'br'],
-      opponent_cards = [5] # Opponent has 5 cards
+      ['b+2', 'b9', 'br', 'g0', 'g6', 'g6', 'y1', 'y8'],
+      'b6',
+      ['b+2', 'b9', 'br'],
+      [5] # Opponent has 5 cards
     )
 
     assert_equal 'play', action['action']
@@ -94,11 +94,11 @@ class TestSmarterAgent < Minitest::Test
   def test_war_reverse_counter
     # Case: In a +2 war, should play reverse if available
     action = simulate_agent_decision(
-      hand = ['br', 'g+2', 'r3', 'y7'],
-      top_card = 'b+2',
-      playable_cards = ['br', 'g+2'],
-      opponent_cards = [3],
-      war_cards = 2
+      ['br', 'g+2', 'r3', 'y7'],
+      'b+2',
+      ['br', 'g+2'],
+      [3],
+      2
     )
 
     assert_equal 'play', action['action']
@@ -108,10 +108,10 @@ class TestSmarterAgent < Minitest::Test
   def test_opponent_one_card_disruption
     # Case: Opponent has 1 card - maximum disruption
     action = simulate_agent_decision(
-      hand = ['b3', 'b+2', 'bs', 'wd4', 'y5'],
-      top_card = 'b7',
-      playable_cards = ['b3', 'b+2', 'bs', 'wd4'],
-      opponent_cards = [1] # Opponent has 1 card!
+      ['b3', 'b+2', 'bs', 'wd4', 'y5'],
+      'b7',
+      ['b3', 'b+2', 'bs', 'wd4'],
+      [1] # Opponent has 1 card!
     )
 
     assert_equal 'play', action['action']
@@ -121,10 +121,10 @@ class TestSmarterAgent < Minitest::Test
   def test_safe_play_when_low_cards
     # Case: We have only 2 cards - play safe
     action = simulate_agent_decision(
-      hand = %w[b9 wd4],
-      top_card = 'b3',
-      playable_cards = %w[b9 wd4],
-      opponent_cards = [5]
+      %w[b9 wd4],
+      'b3',
+      %w[b9 wd4],
+      [5]
     )
 
     assert_equal 'play', action['action']
@@ -134,10 +134,10 @@ class TestSmarterAgent < Minitest::Test
   def test_action_card_timing
     # Case: Don't waste action cards when opponent has many cards
     action = simulate_agent_decision(
-      hand = %w[b3 bs g2 g4 r7],
-      top_card = 'b9',
-      playable_cards = %w[b3 bs],
-      opponent_cards = [7] # Opponent has 7 cards
+      %w[b3 bs g2 g4 r7],
+      'b9',
+      %w[b3 bs],
+      [7] # Opponent has 7 cards
     )
 
     assert_equal 'play', action['action']
@@ -147,10 +147,10 @@ class TestSmarterAgent < Minitest::Test
   def test_draw_decision
     # Case: No playable cards - must draw
     action = simulate_agent_decision(
-      hand = %w[r3 r7 g2],
-      top_card = 'y5',
-      playable_cards = [],
-      opponent_cards = [4]
+      %w[r3 r7 g2],
+      'y5',
+      [],
+      [4]
     )
 
     assert_equal 'draw', action['action'], 'Should draw when no cards are playable'
@@ -159,10 +159,10 @@ class TestSmarterAgent < Minitest::Test
   def test_wild_color_selection
     # Case: Playing wild card - should pick color we have most of
     action = simulate_agent_decision(
-      hand = %w[b3 b7 b9 g2 r1 w],
-      top_card = 'y5',
-      playable_cards = ['w'],
-      opponent_cards = [3]
+      %w[b3 b7 b9 g2 r1 w],
+      'y5',
+      ['w'],
+      [3]
     )
 
     assert_equal 'play', action['action']
@@ -173,10 +173,10 @@ class TestSmarterAgent < Minitest::Test
   def test_defensive_wd4_when_opponent_uno
     # Case: We have 7 cards, opponent has 1 card - must play wd4 to prevent loss
     action = simulate_agent_decision(
-      hand = %w[b2 b5 g3 g7 r1 wd4 y8],
-      top_card = 'g9',
-      playable_cards = %w[g3 g7 wd4], # We have color matches but should play wd4
-      opponent_cards = [1] # CRITICAL: Opponent has UNO!
+      %w[b2 b5 g3 g7 r1 wd4 y8],
+      'g9',
+      %w[g3 g7 wd4], # We have color matches but should play wd4
+      [1] # CRITICAL: Opponent has UNO!
     )
 
     assert_equal 'play', action['action']
@@ -186,10 +186,10 @@ class TestSmarterAgent < Minitest::Test
   def test_defensive_plus2_when_opponent_uno
     # Case: We have 7 cards, opponent has 1 card, no wd4 - must play +2
     action = simulate_agent_decision(
-      hand = ['b+2', 'b3', 'b7', 'g4', 'r8', 'y2', 'y9'],
-      top_card = 'b6',
-      playable_cards = ['b+2', 'b3', 'b7'], # Have multiple options
-      opponent_cards = [1] # CRITICAL: Opponent has UNO!
+      ['b+2', 'b3', 'b7', 'g4', 'r8', 'y2', 'y9'],
+      'b6',
+      ['b+2', 'b3', 'b7'], # Have multiple options
+      [1] # CRITICAL: Opponent has UNO!
     )
 
     assert_equal 'play', action['action']
@@ -199,10 +199,10 @@ class TestSmarterAgent < Minitest::Test
   def test_prefer_plus2_over_wd4_for_defense
     # Case: When we have both +2 and wd4, prefer +2 (it's checked first)
     action = simulate_agent_decision(
-      hand = ['b+2', 'b5', 'g8', 'r3', 'wd4', 'y1', 'y7'],
-      top_card = 'b9',
-      playable_cards = ['b+2', 'b5', 'wd4'],
-      opponent_cards = [1] # Opponent has UNO!
+      ['b+2', 'b5', 'g8', 'r3', 'wd4', 'y1', 'y7'],
+      'b9',
+      ['b+2', 'b5', 'wd4'],
+      [1] # Opponent has UNO!
     )
 
     assert_equal 'play', action['action']
@@ -216,10 +216,10 @@ class TestSmarterAgent < Minitest::Test
 
     # First decision with hand size 5
     action = simulate_agent_decision(
-      hand = %w[b9 g4 gs gs bs],
-      top_card = 'b4',
-      playable_cards = %w[b9 bs], # Can play b9 or bs
-      opponent_cards = [5]
+      %w[b9 g4 gs gs bs],
+      'b4',
+      %w[b9 bs], # Can play b9 or bs
+      [5]
     )
 
     # With 5 cards and opponent having 5, should prefer b9 (isolated number)
@@ -228,10 +228,10 @@ class TestSmarterAgent < Minitest::Test
 
     # Scenario continues: opponent plays g9, now we're down to 4 cards
     action2 = simulate_agent_decision(
-      hand = %w[g4 gs gs bs],
-      top_card = 'g9',
-      playable_cards = %w[g4 gs], # Can play g4 or gs
-      opponent_cards = [5] # They still have 5 after drawing and playing
+      %w[g4 gs gs bs],
+      'g9',
+      %w[g4 gs], # Can play g4 or gs
+      [5] # They still have 5 after drawing and playing
     )
 
     # With 4 cards, skip cards become very valuable
@@ -244,10 +244,10 @@ class TestSmarterAgent < Minitest::Test
     if action2['card'] == 'g4'
       # Test the skip chain
       action3 = simulate_agent_decision(
-        hand = %w[gs gs bs],
-        top_card = 'g5', # Opponent played g5
-        playable_cards = ['gs'],
-        opponent_cards = [5]
+        %w[gs gs bs],
+        'g5', # Opponent played g5
+        ['gs'],
+        [5]
       )
 
       assert_equal 'play', action3['action']
@@ -255,10 +255,10 @@ class TestSmarterAgent < Minitest::Test
     else
       # We played gs first, which also works
       action3 = simulate_agent_decision(
-        hand = %w[g4 gs bs],
-        top_card = 'gs', # We get another turn after skip
-        playable_cards = %w[g4 gs bs],
-        opponent_cards = [5]
+        %w[g4 gs bs],
+        'gs', # We get another turn after skip
+        %w[g4 gs bs],
+        [5]
       )
 
       # With multiple skips, should continue skip chain
@@ -271,11 +271,11 @@ class TestSmarterAgent < Minitest::Test
     # Specific test: with 3 cards left (2 skips + 1 number), recognize winning pattern
     # Hand: gs, bs, g4 with top card gs (after we just played a skip)
     action = simulate_agent_decision(
-      hand = %w[g4 gs bs],
-      top_card = 'gs', # We just played green skip
-      playable_cards = %w[g4 gs bs], # All playable
-      opponent_cards = [5],
-      war_cards = 0
+      %w[g4 gs bs],
+      'gs', # We just played green skip
+      %w[g4 gs bs], # All playable
+      [5],
+      0
     )
 
     # Should prefer skip cards to maintain control
@@ -289,10 +289,10 @@ class TestSmarterAgent < Minitest::Test
     # Top card g9, hand: g8, g8, gs, gs, bs, bs, ys, ys, rs, rs
     # Optimal play: gs -> bs -> bs -> ys -> ys -> rs -> rs -> g8g8 (double play)
     action = simulate_agent_decision(
-      hand = %w[g8 g8 gs gs bs bs ys ys rs rs],
-      top_card = 'g9',
-      playable_cards = %w[g8 gs], # Can play g8 or gs
-      opponent_cards = [7]
+      %w[g8 g8 gs gs bs bs ys ys rs rs],
+      'g9',
+      %w[g8 gs], # Can play g8 or gs
+      [7]
     )
 
     assert_equal 'play', action['action']
@@ -305,10 +305,10 @@ class TestSmarterAgent < Minitest::Test
     # Opponent has 1 card, top card is g8. We have gs, ys, wd4.
     # Optimal play: gs -> ys -> wd4 (win in one turn!)
     action = simulate_agent_decision(
-      hand = %w[gs ys wd4],
-      top_card = 'g8',
-      playable_cards = %w[gs wd4], # Can play gs or wd4
-      opponent_cards = [1] # Opponent has UNO
+      %w[gs ys wd4],
+      'g8',
+      %w[gs wd4], # Can play gs or wd4
+      [1] # Opponent has UNO
     )
 
     assert_equal 'play', action['action']
@@ -321,10 +321,10 @@ class TestSmarterAgent < Minitest::Test
     # Top card is bs. We have b2, b8, gs, gs.
     # Should play b8 (then b2), saving skips for later
     action = simulate_agent_decision(
-      hand = %w[b2 b8 gs gs],
-      top_card = 'bs',
-      playable_cards = %w[b2 b8 gs],
-      opponent_cards = [3] # Opponent has many cards - no immediate danger
+      %w[b2 b8 gs gs],
+      'bs',
+      %w[b2 b8 gs],
+      [3] # Opponent has many cards - no immediate danger
     )
 
     assert_equal 'play', action['action']
@@ -350,7 +350,7 @@ class TestSmarterAgent < Minitest::Test
 end
 
 # Run the test if this file is executed directly
-if __FILE__ == $0
+if __FILE__ == $PROGRAM_NAME
   # Run tests with verbose output
   Minitest.run
 end
