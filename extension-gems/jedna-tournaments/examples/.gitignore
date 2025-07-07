@@ -1,0 +1,15 @@
+# Tournament output directories
+logs/
+results_*/
+parallel_results/
+parallel_test_results/
+
+# Ruby IDE files
+.ruby-lsp/
+
+# Temporary files
+*.tmp
+*.log
+
+# Process-specific output
+process_*/

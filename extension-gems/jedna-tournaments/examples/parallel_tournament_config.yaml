@@ -1,0 +1,25 @@
+# Parallel tournament configuration
+agents:
+  SimpleRuby: './simple_agent.rb'
+  SmartRuby: './smarter_agent.rb'
+
+tournament_type: round-robin
+games_per_round: 4000  # Total games to play
+
+# Parallel execution settings
+parallel:
+  processes: 8  # Number of parallel processes
+  output_dir: parallel_results  # Directory for process outputs
+  merge_results: true  # Automatically merge results at the end
+
+# Timeout configuration
+timeouts:
+  turn_timeout: 5.0
+  game_timeout: 100.0
+
+# Output configuration (for individual processes)
+output:
+  stdout: false  # Silence individual process output
+  log_file: logs/tournament.log
+  log_results_file: logs/results.txt
+  game_log_file: logs/games.log

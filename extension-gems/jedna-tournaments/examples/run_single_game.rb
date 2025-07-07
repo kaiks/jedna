@@ -1,5 +1,16 @@
 #!/usr/bin/env ruby
-# Run a single game between two agents
+# frozen_string_literal: true
+
+# Run Single Game - Debug tool for testing individual games
+#
+# Runs a single game between two agents with full output, useful for:
+# - Debugging agent behavior
+# - Understanding game flow
+# - Testing new strategies
+# - Verifying agent communication
+#
+# Usage: ./run_single_game.rb <agent1_command> <agent2_command>
+# Example: ./run_single_game.rb './simple_agent.rb' './smarter_agent.rb'
 
 require 'bundler/setup'
 require 'jedna'
@@ -39,6 +50,7 @@ class SingleGameRunner
     
     winner = nil
     turn_count = 0
+    game_ended = false
     
     # Set up hooks
     game.before_player_turn do |g, current_player|
@@ -61,6 +73,9 @@ class SingleGameRunner
       @player_agent_map.each do |_, agent|
         agent.notify_game_end(winner.identity.id, scores) rescue nil
       end
+      
+      # Mark game as ended
+      game_ended = true
     end
     
     # Start and run game
@@ -69,11 +84,11 @@ class SingleGameRunner
     # Wait for completion (max 30 seconds)
     timeout = 30
     start_time = Time.now
-    while game.started? && (Time.now - start_time) < timeout
+    while !game_ended && (Time.now - start_time) < timeout
       sleep 0.1
     end
     
-    if game.started?
+    if !game_ended
       puts "\nGame timed out after #{timeout} seconds"
     end
     

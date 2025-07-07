@@ -1,0 +1,25 @@
+# Production tournament configuration - 4000 games
+agents:
+  SimpleRuby: './simple_agent.rb'
+  SmartRuby: './smarter_agent.rb'
+
+tournament_type: round-robin
+games_per_round: 4000  # Total games for 99% confidence, ±2% margin
+
+# Parallel execution settings  
+parallel:
+  processes: 4  # Use 4 CPU cores
+  output_dir: results_4k
+  merge_results: true
+
+# Timeout configuration
+timeouts:
+  turn_timeout: 5.0
+  game_timeout: 100.0
+
+# Output configuration
+output:
+  stdout: false  # Silence output for speed
+  log_file: logs/tournament.log
+  log_results_file: logs/results.txt
+  game_log_file: logs/games.log

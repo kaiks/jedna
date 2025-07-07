@@ -3,14 +3,14 @@
 # Agent definitions - name and command to run
 agents:
   SimpleRuby: './simple_agent.rb'
-  SmartRuby: './smart_agent.rb'
+  SmartRuby: './smarter_agent.rb'
 
 # Tournament format
 # Options: 'round-robin' or 'elimination-bracket'
 tournament_type: round-robin
 
 # Number of games per match/round
-games_per_round: 40
+games_per_round: 200
 
 # Timeout configuration (optional)
 timeouts:
@@ -24,9 +24,9 @@ timeouts:
 output:
   # Show progress on stdout
   stdout: true
-
   # Log all output to file (optional)
-  log_file: tournament_full.log
-
+  log_file: logs/tournament_full.log
   # Save just the final results (optional)
-  log_results_file: tournament_results.txt
+  log_results_file: logs/tournament_results.txt
+  # Save game plays in semicolon format (optional)
+  game_log_file: logs/game_plays.log
