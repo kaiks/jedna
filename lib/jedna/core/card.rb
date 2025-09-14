@@ -169,6 +169,10 @@ module Jedna
     def special_card?
       Jedna::SPECIAL_FIGURES.member?(@figure)
     end
+
+    def wild?
+      special_card?
+    end
   
     def special_valid_card?
       Jedna::COLORS.member?(@color) && special_card?

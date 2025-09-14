@@ -595,4 +595,128 @@ RSpec.describe Jedna::Game do
       expect(three_cards_announcement).to include(current_player.to_s)
     end
   end
+
+  describe 'instant loss condition' do
+    let(:alice) { Jedna::Player.new('Alice') }
+    let(:bob) { Jedna::Player.new('Bob') }
+    let(:charlie) { Jedna::Player.new('Charlie') }
+    
+    before do
+      game.add_player(alice)
+      game.add_player(bob)
+      game.add_player(charlie)
+      game.start_game
+      # Set known player order
+      game.instance_variable_set(:@players, [alice, bob, charlie])
+    end
+    
+    it 'detects when player has more than 35 cards' do
+      # Give bob 36 cards
+      bob.hand = Jedna::Hand.new
+      36.times { bob.hand << Jedna::Card.new(:red, 5) }
+      
+      result = game.player_with_too_many_cards_exists?
+      expect(result).to eq(bob)
+    end
+    
+    it 'returns nil when no player has more than 35 cards' do
+      # Reset hands to normal sizes
+      alice.hand = Jedna::Hand.new
+      bob.hand = Jedna::Hand.new
+      charlie.hand = Jedna::Hand.new
+      7.times do
+        alice.hand << Jedna::Card.new(:red, 5)
+        bob.hand << Jedna::Card.new(:blue, 5)
+        charlie.hand << Jedna::Card.new(:green, 5)
+      end
+      
+      result = game.player_with_too_many_cards_exists?
+      expect(result).to be_nil
+    end
+    
+    it 'triggers instant loss when drawing cards takes total over 35' do
+      # Set up alice as current player with 34 cards
+      game.instance_variable_set(:@players, [alice, bob, charlie])
+      alice.hand = Jedna::Hand.new
+      34.times { alice.hand << Jedna::Card.new(:red, 5) }
+      
+      # Force alice to draw 2 cards (takes her to 36)
+      game.instance_variable_set(:@stacked_cards, 2)
+      game.instance_variable_set(:@game_state, 2)
+      
+      initial_game_state = game.game_state
+      game.give_cards_to_player(alice, 2)
+      
+      # Game should have ended with instant loss
+      expect(game.game_state).to eq(0)
+      expect(game.notifications).to include(match(/loses instantly for having more than 35 cards \(36 cards\)/))
+      
+      # Winner should be determined (first remaining player after losing player is removed)
+      points_notification = game.notifications.find { |n| n.include?("gains") && n.include?("points") }
+      expect(points_notification).not_to be_nil
+    end
+    
+    it 'triggers instant loss during card play check' do
+      # Set alice as current player with exactly 35 cards
+      game.instance_variable_set(:@players, [alice, bob, charlie])
+      alice.hand = Jedna::Hand.new
+      35.times { alice.hand << Jedna::Card.new(:red, 5) }
+      
+      # Add one more card to trigger the condition
+      alice.hand << Jedna::Card.new(:blue, 7)
+      
+      # Set a matching top card
+      game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
+      
+      # Try to play a card (the check happens after playing)
+      playable_card = Jedna::Card.new(:red, 9)
+      alice.hand << playable_card
+      
+      game.player_card_play(alice, playable_card)
+      
+      # Game should have ended with instant loss
+      expect(game.game_state).to eq(0)
+      expect(game.notifications).to include(match(/loses instantly for having more than 35 cards/))
+    end
+    
+    it 'properly rearranges players when instant loss occurs' do
+      # Set up game with charlie having too many cards
+      game.instance_variable_set(:@players, [charlie, alice, bob])
+      charlie.hand = Jedna::Hand.new
+      36.times { charlie.hand << Jedna::Card.new(:red, 5) }
+      
+      # Trigger the instant loss check
+      game.send(:finish_game_with_instant_loss, charlie)
+      
+      # Charlie should be at the end, and alice should be the winner (first)
+      expect(game.players.last).to eq(charlie)
+      expect(game.players.first).to eq(alice)
+      
+      # Should see loss notification
+      expect(game.notifications).to include(match(/Charlie loses instantly/))
+      expect(game.notifications).to include(match(/Alice gains.*points/))
+    end
+    
+    it 'calculates score correctly for instant loss' do
+      # Set specific hands for testing
+      game.instance_variable_set(:@players, [alice, bob, charlie])
+      
+      # Alice will be the winner
+      alice.hand = Jedna::Hand.new
+      alice.hand << [Jedna::Card.new(:blue, 5), Jedna::Card.new(:green, 3)] # 8 points
+      
+      # Bob has some cards
+      bob.hand = Jedna::Hand.new  
+      bob.hand << [Jedna::Card.new(:red, 7), Jedna::Card.new(:yellow, 'skip')] # 27 points
+      
+      # Charlie loses with too many cards
+      charlie.hand = Jedna::Hand.new
+      37.times { charlie.hand << Jedna::Card.new(:wild, 'wild') } # Doesn't count in winner's score
+      
+      game.send(:finish_game_with_instant_loss, charlie)
+      
+      # Total score should be alice's + bob's hands (35 points total, uses minimum 30)
+      expect(game.instance_variable_get(:@total_score)).to eq(35)
+    end
+  end
 end
