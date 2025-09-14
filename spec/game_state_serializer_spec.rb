@@ -53,10 +53,10 @@ RSpec.describe Jedna::GameStateSerializer do
       it 'includes other players info' do
         result = serializer.serialize_for_current_player(game)
         other_players = result[:state][:other_players]
-
+        
         expect(other_players.length).to eq(2)
         expect(other_players[0][:id]).to eq('player2')
-        expect(other_players[0][:cards]).to be_a(Integer)
+        expect(other_players[0][:card_count]).to be_a(Integer)
         expect(other_players[1][:id]).to eq('player3')
       end
 

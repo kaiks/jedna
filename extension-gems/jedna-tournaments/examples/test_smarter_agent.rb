@@ -269,6 +269,48 @@ class TestSmarterAgent < Minitest::Test
     assert_equal 'b8', action['card'], 'Should save skip when opponent has many cards'
   end
 
+  def test_conservative_draw_over_wd4_when_no_pressure
+    # With only wd4 playable and no pressure (opponent not near UNO, we have many cards), prefer to draw
+    action = simulate_agent_decision(
+      hand: %w[g4 g9 r6 wd4 y+2],
+      top_card: 'b3',
+      playable_cards: ['wd4'],
+      opponent_cards: [5],
+      available_actions: %w[play draw]
+    )
+
+    assert_equal 'draw', action['action'], 'Should draw instead of playing wd4 when no pressure'
+  end
+
+  def test_wd4_should_play_when_opponent_uno
+    # With opponent at UNO and only wd4 playable, play wd4
+    state = {
+      'hand' => %w[b1 b2 g1 r1 r4 rs wd4],
+      'top_card' => 'yr',
+      'playable_cards' => ['wd4'],
+      'other_players' => [{ 'id' => 'op1', 'card_count' => 1 }],
+      'available_actions' => %w[play draw]
+    }
+
+    action = ActionDecider.new(state).decide
+
+    assert_equal 'play', action['action']
+    assert_equal 'wd4', action['card']
+  end
+
+  def test_higher_numbers_first_ceteris_paribus
+    # With higher numbers in hand, prefer them
+    action = simulate_agent_decision(
+      hand: %w[b1 b3 g4 g9 r6 wd4 y+2],
+      top_card: 'b2',
+      playable_cards: %w[b1 b3 wd4],
+      opponent_cards: [6]
+    )
+
+    assert_equal 'play', action['action']
+    assert_equal 'b3', action['card'], 'Should prefer higher number (b3) over lower (b1)'
+  end
+
   private
 
   def simulate_agent_decision(hand:, top_card:, playable_cards:, opponent_cards: [7],
@@ -277,7 +319,7 @@ class TestSmarterAgent < Minitest::Test
       'hand' => hand,
       'top_card' => top_card,
       'playable_cards' => playable_cards,
-      'opponent_hand_sizes' => opponent_cards,
+      'other_players' => opponent_cards.map.with_index { |n, i| { 'id' => "op#{i+1}", 'card_count' => n } },
       'war_cards_to_draw' => war_cards,
       'available_actions' => available_actions
     }

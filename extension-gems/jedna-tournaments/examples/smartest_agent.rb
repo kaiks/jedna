@@ -100,7 +100,8 @@ module ChainAnalyzer
     end
 
     # Prefer action cards on tie (e.g., skips) to keep control chains
-    playable.max_by { |c| [best_for_card[c], number?(c) ? 0 : 1] }
+    # Prefer numbers over actions on tie, and if both numbers, prefer higher digit
+    playable.max_by { |c| [best_for_card[c], (number?(c) ? 1 : 0), (number?(c) ? figure(c).to_i : -1)] }
   end
 end
 
@@ -114,7 +115,8 @@ class ActionDecider
     @state          = state
     @playable_cards = state['playable_cards'] || []
     @hand           = state['hand'] || []
-    @opp_sizes      = state['opponent_hand_sizes'] || []
+    # Derive opponent sizes from other_players.card_count
+    @opp_sizes      = (state['other_players'] || []).map { |p| p['card_count'] || p[:card_count] }.compact
     @war_cards      = state['war_cards_to_draw'] || 0
     @top_card       = state['top_card']
   end
@@ -233,8 +235,14 @@ class ActionDecider
   ##########################################################
   def wildcard_or_pass
     wild = @playable_cards.find { |c| c == 'w' }
-    wild ||= @playable_cards.find { |c| c == 'wd4' && allow_wd4? }
-    wild ? play(wild) : draw_action
+    return play(wild) if wild
+
+    if @playable_cards.include?('wd4')
+      return play('wd4') if allow_wd4?
+      return draw_action if @state['available_actions']&.include?('draw')
+      return play('wd4')
+    end
+    draw_action
   end
 
   ##########################################################
@@ -278,7 +286,9 @@ class ActionDecider
     score_best = 0.0
     cards.each do |c|
       s = heuristic_score(c)
-      if s > score_best || (s == score_best && !number?(c) && best && number?(best))
+      if s > score_best ||
+         (s == score_best && number?(c) && best && !number?(best)) ||
+         (s == score_best && number?(c) && best && number?(best) && figure(c).to_i > figure(best).to_i)
         best = c
         score_best = s
       end

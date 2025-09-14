@@ -75,7 +75,7 @@ module Jedna
       players.map do |player|
         {
           id: player.identity.id,
-          cards: player.hand.size
+          card_count: player.hand.size
         }
       end
     end

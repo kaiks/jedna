@@ -83,7 +83,8 @@ class ActionDecider
     @state            = state
     @playable_cards   = state['playable_cards'] || []
     @hand             = state['hand'] || []
-    @opponent_sizes   = state['opponent_hand_sizes'] || []
+    # Derive opponent sizes from other_players.card_count (serializer contract)
+    @opponent_sizes   = (state['other_players'] || []).map { |p| p['card_count'] || p[:card_count] }.compact
     @war_cards        = state['war_cards_to_draw'] || 0
     @top_card         = state['top_card']
   end
@@ -160,22 +161,37 @@ class ActionDecider
 
     # Prefer isolated numbers when opponents have >= 4 cards.
     if min_opp >= 4 && numbers.any?
-      isolated = numbers.find { |card| isolated_number?(card) }
-      return play(isolated) if isolated
-      return play(numbers.first) if actions.any?
+      isolated_numbers = numbers.select { |card| isolated_number?(card) }
+      if isolated_numbers.any?
+        # Pick the highest-digit isolated number
+        best_isolated = isolated_numbers.max_by { |c| figure(c).to_i }
+        return play(best_isolated)
+      end
+      # Otherwise, if we’re choosing a number over an action, prefer the higher digit
+      return play(numbers.max_by { |c| figure(c).to_i }) if actions.any?
     end
 
     # Chain evaluation.
     best_chain = best_chain_starter(non_wild)
     return play(best_chain) if best_chain
 
-    # Fallback: number → action.
-    play(numbers.first || actions.first)
+    # Fallback: number → action. Prefer higher-digit number when applicable.
+    play(numbers.max_by { |c| figure(c).to_i } || actions.first)
   end
 
   def wildcard_or_fallback
-    wild = @playable_cards.find { |c| c == 'w' } || @playable_cards.find { |c| c == 'wd4' }
-    play(wild) if wild
+    # Prefer simple wild; gate WD4 behind a conservative rule
+    wild = @playable_cards.find { |c| c == 'w' }
+    return play(wild) if wild
+
+    if @playable_cards.include?('wd4')
+      return play('wd4') if allow_wd4?
+      # No pressure: prefer to draw if possible; otherwise must play wd4
+      return draw_action if @state['available_actions']&.include?('draw')
+      return play('wd4')
+    end
+
+    draw_action
   end
 
   ## Helper methods ---------------------------------------------------------
@@ -203,10 +219,18 @@ class ActionDecider
     action
   end
 
+  # Conservative rule: only allow WD4 when there's pressure
+  # - Opponent near UNO, or
+  # - Big war stack to respond to, or
+  # - We are low on cards (endgame)
+  def allow_wd4?
+    (@opponent_sizes.min || 4) < 3 || @war_cards > 4 || @hand.size <= 3
+  end
+
   # True if the number appears nowhere else in hand.
   def isolated_number?(card)
     fig = figure(card)
-    @hand.none? { |c| c != card && figure(c) == fig }
+    @hand.count { |c| figure(c) == fig } == 1
   end
 
   # Simple heuristic to find a card that opens up the biggest chain.
