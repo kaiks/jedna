@@ -368,6 +368,15 @@ class ConfiguredTournamentRunner
 
           card.set_wild_color(action['wild_color'].to_sym) if action['wild_color']
           game.player_card_play(player, card)
+
+          # Handle optional double-play of the same card in the same turn
+          if action['double_play']
+            begin
+              game.player_card_play(player, card, true)
+            rescue StandardError
+              # If engine refuses (e.g., after draw), ignore silently
+            end
+          end
         end
       when 'draw'
         @current_game_log << "#{top_card};#{player_name};#{hand_cards};draw"
@@ -422,7 +431,7 @@ class ConfiguredTournamentRunner
   def generate_final_results(duration)
     output = []
     output << "\n📊 FINAL TOURNAMENT RESULTS"
-    output << '=' * 60
+    output << ('=' * 60)
     output << "Tournament: #{@tournament_type}"
     output << "Total duration: #{duration.round(2)} seconds"
     output << ''

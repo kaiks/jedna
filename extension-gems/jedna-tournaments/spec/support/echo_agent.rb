@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 # Simple agent that echoes back predetermined responses for testing
 
 require 'json'
@@ -11,21 +13,19 @@ responses = {
 }
 
 # Allow override via environment variable
-if ENV['AGENT_RESPONSE']
-  responses['request_action'] = JSON.parse(ENV['AGENT_RESPONSE'])
-end
+responses['request_action'] = JSON.parse(ENV['AGENT_RESPONSE']) if ENV['AGENT_RESPONSE']
 
 loop do
   input = gets
   break if input.nil?
-  
+
   data = JSON.parse(input)
   response = responses[data['type']]
-  
+
   if response == :exit
     break
   elsif response
     puts JSON.generate(response)
-    STDOUT.flush
+    $stdout.flush
   end
 end

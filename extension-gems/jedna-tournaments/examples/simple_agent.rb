@@ -3,43 +3,43 @@
 
 require 'json'
 
+# Basic Jedna agent that plays the first available card
 class SimpleAgent
+  COLOR_NAMES = {
+    'r' => 'red',
+    'b' => 'blue',
+    'g' => 'green',
+    'y' => 'yellow'
+  }.freeze
+
   def run
     loop do
       input = gets
       break if input.nil?
 
-      data = JSON.parse(input)
-
-      case data['type']
-      when 'request_action'
-        action = decide_action(data['state'])
-        puts JSON.generate(action)
-        $stdout.flush
-      when 'game_end'
-        break
-      end
+      process_message(JSON.parse(input))
     end
   end
 
   private
 
+  def process_message(data)
+    case data['type']
+    when 'request_action'
+      respond_with_action(decide_action(data['state']))
+    when 'game_end'
+      exit
+    end
+  end
+
+  def respond_with_action(action)
+    puts JSON.generate(action)
+    $stdout.flush
+  end
+
   def decide_action(state)
-    # Simple strategy: play first playable card, otherwise draw
     if state['playable_cards']&.any?
-      card = state['playable_cards'].first
-      action = { 'action' => 'play', 'card' => card }
-
-      # Add color for wild cards
-      if card == 'w' || card.start_with?('wd')
-        # Pick the color we have most of
-        colors = state['hand'].map { |c| c[0] }.reject { |c| c == 'w' }
-        color_counts = colors.tally
-        best_color = color_counts.max_by { |_, count| count }&.first || 'r'
-        action['wild_color'] = color_name(best_color)
-      end
-
-      action
+      play_card(state['playable_cards'].first, state['hand'])
     elsif state['available_actions']&.include?('draw')
       { 'action' => 'draw' }
     else
@@ -47,8 +47,25 @@ class SimpleAgent
     end
   end
 
-  def color_name(letter)
-    { 'r' => 'red', 'b' => 'blue', 'g' => 'green', 'y' => 'yellow' }[letter]
+  def play_card(card, hand)
+    action = { 'action' => 'play', 'card' => card }
+    action.merge!(wild_color_choice(card, hand)) if wild_card?(card)
+    action
+  end
+
+  def wild_card?(card)
+    card == 'w' || card.start_with?('wd')
+  end
+
+  def wild_color_choice(_card, hand)
+    best_color = most_common_color(hand)
+    { 'wild_color' => COLOR_NAMES.fetch(best_color, 'red') }
+  end
+
+  def most_common_color(hand)
+    colors = hand.map { |c| c[0] }.reject { |c| c == 'w' }
+    color_counts = colors.tally
+    color_counts.max_by { |_, count| count }&.first || 'r'
   end
 end
 

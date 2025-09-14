@@ -20,7 +20,7 @@
 
 require 'minitest/autorun'
 require 'json'
-require_relative 'smarter_agent'
+require_relative 'smartest_agent'
 
 # Test suite for SmarterAgent strategies
 class TestSmarterAgent < Minitest::Test
