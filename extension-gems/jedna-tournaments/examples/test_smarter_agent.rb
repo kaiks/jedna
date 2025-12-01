@@ -176,6 +176,19 @@ class TestSmarterAgent < Minitest::Test
     assert_equal 'bs', action['card'], 'Should play skip when opponent has UNO'
   end
 
+  def test_wd4_preferred_over_reverse_when_opponent_uno
+    # With opponent at UNO and both reverse and wd4 playable, prefer wd4
+    action = simulate_agent_decision(
+      hand: %w[gr r5 wd4 y5 y9],
+      top_card: 'g6',
+      playable_cards: %w[gr wd4],
+      opponent_cards: [1]
+    )
+
+    assert_equal 'play', action['action']
+    assert_equal 'wd4', action['card'], 'Should prefer wd4 over reverse when opponent has UNO'
+  end
+
   def test_continue_war_with_many_cards
     # Continue +2 war when we have many cards
     action = simulate_agent_decision(
@@ -309,6 +322,47 @@ class TestSmarterAgent < Minitest::Test
 
     assert_equal 'play', action['action']
     assert_equal 'b3', action['card'], 'Should prefer higher number (b3) over lower (b1)'
+  end
+
+  def test_play_wild_offensively_when_opponent_uno
+    # When opponent is at UNO and no disruptive action is playable,
+    # prefer playing a wild over a plain number to seize tempo.
+    action = simulate_agent_decision(
+      hand: %w[b5 g+2 g0 g1 g8 r2 w y+2 ys],
+      top_card: 'b5',
+      playable_cards: %w[b5 w],
+      opponent_cards: [1]
+    )
+
+    assert_equal 'play', action['action']
+    assert_equal 'w', action['card'], 'Should play wild to be offensive when opponent at UNO'
+  end
+
+  def test_offensive_non_wild_when_two_left_with_wd4_backup
+    # If opponent has 2 cards and we can play an offensive non-wild
+    # while keeping a wd4 in reserve, play the offensive card.
+    action = simulate_agent_decision(
+      hand: %w[y+2 y5 wd4 g3],
+      top_card: 'y5',
+      playable_cards: %w[y+2 y5 wd4],
+      opponent_cards: [2]
+    )
+
+    assert_equal 'play', action['action']
+    assert_equal 'y+2', action['card'], 'Should play +2 and keep wd4 in reserve'
+  end
+
+  def test_two_wd4_allows_wd4_when_opponent_two_cards
+    # With two wd4 available and opponent has 2 cards, playing wd4 is acceptable
+    action = simulate_agent_decision(
+      hand: %w[b5 wd4 wd4],
+      top_card: 'b1',
+      playable_cards: %w[b5 wd4],
+      opponent_cards: [2]
+    )
+
+    assert_equal 'play', action['action']
+    assert_equal 'wd4', action['card'], 'Should play wd4 when we still keep one wd4 as backup'
   end
 
   private

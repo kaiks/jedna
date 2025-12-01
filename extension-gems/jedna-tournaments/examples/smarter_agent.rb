@@ -96,6 +96,7 @@ class ActionDecider
     # Ordered decision pipeline – early‑return style for readability.
     handle_war ||
       disrupt_if_uno      ||
+      aggressive_two_left ||
       play_safe_endgame   ||
       execute_skip_chain  ||
       smart_default_play  ||
@@ -125,9 +126,55 @@ class ActionDecider
   def disrupt_if_uno
     return unless (@opponent_sizes.min || 2) == 1
 
-    disruptive = @playable_cards.find { |c| draw_two?(c) || skip?(c) || reverse?(c) }
-    disruptive ||= 'wd4' if @playable_cards.include?('wd4')
-    disruptive && play(disruptive)
+    # If we can start a skip chain (we hold >= 2 skips and one is playable), do that first.
+    if @hand.count { |c| skip?(c) } >= 2
+      if (c = @playable_cards.find { |x| skip?(x) })
+        return play(c)
+      end
+    end
+
+    # Prefer strongest disruption first: wd4 > +2 > skip > reverse
+    return play('wd4') if @playable_cards.include?('wd4')
+
+    if (c = @playable_cards.find { |x| draw_two?(x) })
+      return play(c)
+    end
+    if (c = @playable_cards.find { |x| skip?(x) })
+      return play(c)
+    end
+    if (c = @playable_cards.find { |x| reverse?(x) })
+      return play(c)
+    end
+
+    # If no direct disruptive action is playable, prefer wild over a plain number
+    # to seize tempo and pick a favourable colour.
+    return play('w') if @playable_cards.include?('w')
+
+    nil
+  end
+
+  # When opponent has 2 cards:
+  # - Prefer an offensive non-wild (skip/reverse/+2) if we can keep a wd4 in reserve
+  # - Otherwise, if we hold at least two wd4 and wd4 is playable, play wd4
+  def aggressive_two_left
+    return unless (@opponent_sizes.min || 7) == 2
+
+    wd4_count = @hand.count { |c| c == 'wd4' }
+
+    # For the two-cards aggression rule, treat +2 and skip as offensive.
+    # Exclude reverse to avoid breaking beneficial chain starts.
+    offensive = @playable_cards.select { |c| draw_two?(c) || skip?(c) }.reject { |c| c == 'wd4' }
+    if wd4_count >= 1 && offensive.any?
+      # Prefer +2 over skip
+      pick = offensive.find { |c| draw_two?(c) } || offensive.find { |c| skip?(c) } || offensive.first
+      return play(pick)
+    end
+
+    if wd4_count >= 2 && @playable_cards.include?('wd4')
+      return play('wd4')
+    end
+
+    nil
   end
 
   def play_safe_endgame
@@ -224,7 +271,13 @@ class ActionDecider
   # - Big war stack to respond to, or
   # - We are low on cards (endgame)
   def allow_wd4?
-    (@opponent_sizes.min || 4) < 3 || @war_cards > 4 || @hand.size <= 3
+    min_opp = @opponent_sizes.min || 4
+    wd4_count = @hand.count { |c| c == 'wd4' }
+
+    min_opp == 1 ||
+      (min_opp == 2 && wd4_count >= 2) ||
+      @war_cards > 4 ||
+      @hand.size <= 3
   end
 
   # True if the number appears nowhere else in hand.

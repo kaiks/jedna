@@ -177,12 +177,12 @@ class ParallelTournamentRunner
 
     # Write merged game log
     File.write(File.join(merged_dir, 'all_games.log'), all_game_logs.join("\n")) if all_game_logs.any?
-    
+
     # If wins weren't parsed from results files, parse from game logs
     if total_wins.empty? && all_game_logs.any?
       all_game_logs.each do |line|
         if line.start_with?('Game ') && line =~ /Winner: (\w+)/
-          winner = $1
+          winner = ::Regexp.last_match(1)
           total_wins[winner] = (total_wins[winner] || 0) + 1
         end
       end
@@ -231,9 +231,9 @@ class ParallelTournamentRunner
     z = 1.96 # 95% confidence
     p_hat = wins.to_f / total
 
-    denominator = 1 + z**2 / total
-    center = (p_hat + z**2 / (2 * total)) / denominator
-    margin = z * Math.sqrt(p_hat * (1 - p_hat) / total + z**2 / (4 * total**2)) / denominator
+    denominator = 1 + ((z**2) / total)
+    center = (p_hat + ((z**2) / (2 * total))) / denominator
+    margin = z * Math.sqrt((p_hat * (1 - p_hat) / total) + ((z**2) / (4 * (total**2)))) / denominator
 
     [[center - margin, 0].max, [center + margin, 1].min]
   end

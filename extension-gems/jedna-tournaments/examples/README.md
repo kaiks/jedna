@@ -52,6 +52,94 @@ ruby analyze_results.rb 570 1000  # 570 wins out of 1000 games
 - `agent_improvement_strategy.md` - Log of agent development iterations and learnings
 - `test_suite_summary.md` - Overview of all agent tests and their purposes
 
+## RL Agent (Python)
+
+This repo includes a modular Python RL agent scaffold and a fast engine bridge that lets you train/evaluate agents without touching the Ruby engine.
+
+### Files
+- `rl_agent.py` — CLI launcher for a JSON‑line agent (random or SB3 model)
+- `rl_agent/` package:
+  - `io_stream.py` — pluggable stdin/stdout I/O (fast JSON backends)
+  - `encoding.py` — fixed action space, observation encoding, action masking
+  - `policy.py` — RandomMaskedPolicy; SB3 MaskablePPO adapter
+  - `history.py` — pluggable history sinks (noop, JSONL)
+  - `agent.py` — protocol loop glue
+  - `rl_env.py` — Gymnasium environment vs a process opponent (uses engine bridge)
+  - `train_sb3.py` — sample SB3 training script (MaskablePPO with action masks)
+- `engine_bridge.rb` — runs a single game with `agent1` driven via stdin/stdout JSON and `agent2` as a process opponent. Uses silent notifier for clean JSON.
+- `rl_agent/debug_one_game.py` — single‑episode debug runner with a watchdog timeout
+
+### Dependencies
+- Python 3.10+
+- Optional RL stack: `pip install stable-baselines3 sb3-contrib gymnasium torch`
+  - SB3 MaskablePPO is used for action masking (contrib package)
+
+### Quick checks
+Run a single game: Random agent vs smarter_agent
+
+```bash
+ruby run_single_game.rb \
+  "python3 extension-gems/jedna-tournaments/examples/rl_agent.py --policy random" \
+  "ruby extension-gems/jedna-tournaments/examples/smarter_agent.rb"
+```
+
+Debug one game with a 60s timeout (terminates on stall):
+
+```bash
+python3 extension-gems/jedna-tournaments/examples/rl_agent/debug_one_game.py \
+  --opponent "ruby extension-gems/jedna-tournaments/examples/smarter_agent.rb" \
+  --timeout 60
+```
+
+Use the agent in tournaments by pointing to the command string:
+
+```yaml
+# tournament_config.yaml (excerpt)
+agents:
+  rl_random: "python3 extension-gems/jedna-tournaments/examples/rl_agent.py --policy random"
+  smarter:   "ruby extension-gems/jedna-tournaments/examples/smarter_agent.rb"
+```
+
+### Training with SB3 (MaskablePPO)
+
+```bash
+python3 extension-gems/jedna-tournaments/examples/rl_agent/train_sb3.py \
+  --opponent "ruby extension-gems/jedna-tournaments/examples/smarter_agent.rb" \
+  --timesteps 100000 \
+  --model /tmp/jedna_maskppo \
+  --timeout 60 \
+  --envs 4 \
+  --checkpoint-dir /tmp/jedna_ckpts \
+  --checkpoint-every 50000 \
+  --eval-freq 50000 \
+  --eval-episodes 200
+```
+
+Notes:
+- The env uses the Ruby `engine_bridge.rb` under the hood for fast, single‑game episodes.
+- Action masks are provided via `info['action_mask']` and respected by MaskablePPO.
+- You can adjust per‑episode timeout by constructing `JednaVsProcessEnv(..., max_seconds=60)` in custom scripts.
+
+Tips:
+- Increase `--envs` to use multiple CPU cores (e.g., 4) and reduce wall time.
+- Keep batch size roughly constant; with `--envs 4`, PPO will collect n_steps per env internally and aggregate.
+- `--checkpoint-dir` saves periodic checkpoints; `--eval-freq` evaluates and saves a "best" model in that dir.
+
+### Evaluate a trained model
+
+```bash
+python3 extension-gems/jedna-tournaments/examples/rl_agent/eval_sb3.py \
+  --opponent "ruby extension-gems/jedna-tournaments/examples/smarter_agent.rb" \
+  --model /tmp/jedna_maskppo.zip \
+  --episodes 200 \
+  --timeout 60
+```
+
+### Performance tips
+- The bridge runs the game with `NullNotifier` and `NullRepository` for minimal I/O.
+- Prefer `sb3-contrib` MaskablePPO for correctness when masking actions.
+- For larger scale, you can run multiple Python processes in parallel and aggregate models or use RLlib.
+
 ## Running Tournaments
 
 ### Basic Tournament

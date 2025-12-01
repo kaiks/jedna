@@ -17,13 +17,27 @@
 #
 # Usage: ./smart_agent.rb (communicates via JSON on stdin/stdout)
 
-require_relative 'lib/base_agent'
+require 'json'
 
 # Probability and chain-based strategy agent
-class SmartAgent < BaseAgent
+class SmartAgent
   PROBABILITY_THRESHOLD = 10
   MAX_PERMUTATION_SIZE = 8
   DISCOUNT_FACTOR = 0.99
+
+  def run
+    while (line = $stdin.gets)
+      data = JSON.parse(line)
+
+      case data['type']
+      when 'request_action'
+        puts JSON.generate(decide_action(data['state']))
+        $stdout.flush
+      when 'game_end'
+        break
+      end
+    end
+  end
 
   private
 
@@ -232,6 +246,29 @@ class SmartAgent < BaseAgent
     return %w[w wild] if %w[w wd4].include?(card)
 
     [card[0], card[1..]]
+  end
+
+  def wild_card?(card)
+    card == 'w' || card == 'wd4'
+  end
+
+  def play_card(card, hand)
+    action = { 'action' => 'play', 'card' => card }
+    return action unless wild_card?(card)
+
+    colors = hand.map { |c| c[0] }.reject { |c| c == 'w' }
+    best_color = colors.tally.max_by { |_, count| count }&.first || 'r'
+    action['wild_color'] = color_name(best_color)
+    action
+  end
+
+  def color_name(letter)
+    {
+      'r' => 'red',
+      'b' => 'blue',
+      'g' => 'green',
+      'y' => 'yellow'
+    }.fetch(letter, 'red')
   end
 
   def default_play

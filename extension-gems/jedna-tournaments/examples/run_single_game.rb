@@ -101,10 +101,16 @@ class SingleGameRunner
     agent = @agents[player.identity.id]
     return unless agent
 
+    # If the game already ended via callback, stop processing turns
+    return if @game_ended
+
     state = @serializer.serialize_for_current_player(game)
 
     begin
       action = agent.request_action(state[:state], timeout: TURN_TIMEOUT)
+      unless action.is_a?(Hash) && action['action']
+        raise "Invalid agent response: #{action.inspect}"
+      end
       execute_action(game, player, action)
     rescue StandardError => e
       puts "Error: #{e.message}"
@@ -133,7 +139,7 @@ class SingleGameRunner
     configure_wild_color(card, action['wild_color'])
     game.player_card_play(player, card)
 
-    return unless action['double_play']
+    return unless action.is_a?(Hash) && action['double_play']
 
     begin
       game.player_card_play(player, card, true)
@@ -152,6 +158,10 @@ class SingleGameRunner
     agent = @agents[player.identity.id]
 
     follow_up = agent.request_action(new_state[:state], timeout: TURN_TIMEOUT)
+    unless follow_up.is_a?(Hash) && follow_up['action']
+      game.turn_pass
+      return
+    end
 
     if follow_up['action'] == 'play'
       play_card(game, player, follow_up)

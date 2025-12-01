@@ -1,7 +1,8 @@
 # Production tournament configuration - 4000 games
 agents:
-  SimpleRuby: 'python3 simple_agent.py'
-  SmartRuby: './smarter_agent.rb'
+  # SimpleRuby: 'python3 simple_agent.py'
+  SmarterRuby: './smarter_agent.rb'
+  SmartestRuby: './smartest_agent.rb'
 
 tournament_type: round-robin
 games_per_round: 4000  # Total games for 99% confidence, ±2% margin

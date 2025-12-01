@@ -26,9 +26,9 @@ When it's an agent's turn, the game sends a JSON object describing the current g
     "stacked_cards": 0,
     "already_picked": false,
     "picked_card": null,
-    "other_players": [
-      {"id": "player2", "cards": 3},
-      {"id": "player3", "cards": 7}
+  "other_players": [
+      {"id": "player2", "card_count": 3},
+      {"id": "player3", "card_count": 7}
     ],
     "available_actions": ["play", "draw", "pass"],
     "playable_cards": ["r2"]
@@ -60,11 +60,13 @@ The agent must respond with a JSON object specifying the action:
 {
   "action": "play",
   "card": "r2",
-  "wild_color": "blue"
+  "wild_color": "blue",
+  "double_play": true
 }
 ```
 - `card`: The card code to play (must be from hand)
 - `wild_color`: Required only when playing wild cards ("red", "blue", "green", "yellow")
+- `double_play` (optional): If `true`, and you hold an identical second copy of `card`, the engine will attempt to play it immediately in the same turn. This is ignored after drawing and when not legal.
 
 #### Draw a Card
 ```json
