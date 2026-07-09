@@ -3,7 +3,10 @@ MIGRATION_NOTES.md
 
 # Ruby-specific ignores
 *.gem
+*.zip
 *.rbc
+__pycache__/
+*.pyc
 /.config
 /coverage/
 /InstalledFiles

@@ -1,0 +1,5 @@
+*.gem
+*.zip
+/checkpoints/
+/logs/
+/spec/examples.txt

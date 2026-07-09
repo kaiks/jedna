@@ -10,6 +10,8 @@ parallel_test_results/
 # Temporary files
 *.tmp
 *.log
+__pycache__/
+*.pyc
 
 # Process-specific output
 process_*/
