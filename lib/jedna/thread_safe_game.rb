@@ -1,18 +1,28 @@
-require 'monitor'
+# frozen_string_literal: true
 
-# Optional thread safety module for Game
-# Can be included when thread safety is needed (e.g., in IRC bot context)
+require 'monitor'
+require_relative 'core/game'
+
+# Adds reentrant synchronization around the public Jedna::Game API.
 module ThreadSafeGame
-  def initialize(*original_args)
-    super(*original_args)
-    @__monitor = Monitor.new
-    self.class.instance_methods(false).each do |method_name|
-      method_reference = self.class.instance_method(method_name)
-      define_singleton_method method_name do |*args, &block|
-        @__monitor.synchronize do
-          method_reference.bind(self).call(*args, &block)
+  def self.included(base)
+    synchronized_api = Module.new do
+      define_method(:initialize) do |*args, **kwargs, &block|
+        @__monitor = Monitor.new
+        super(*args, **kwargs, &block)
+      end
+
+      Jedna::Game.public_instance_methods(false).each do |method_name|
+        next if method_name == :initialize
+
+        define_method(method_name) do |*args, **kwargs, &block|
+          @__monitor.synchronize do
+            super(*args, **kwargs, &block)
+          end
         end
       end
     end
+
+    base.prepend(synchronized_api)
   end
 end
