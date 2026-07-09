@@ -88,7 +88,7 @@ class GameEngine
     @winner_id = nil
 
     game = setup_game(player1_name, player2_name, agent_map)
-    game.start_game
+    game.start_game(nil, player1_name)
 
     wait_for_completion(game_timeout)
 

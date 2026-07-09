@@ -85,7 +85,7 @@ class SingleGameRunner
   end
 
   def run_game_loop(game)
-    game.start_game
+    game.start_game(nil, 'agent1')
 
     # Wait for completion
     start_time = Time.now

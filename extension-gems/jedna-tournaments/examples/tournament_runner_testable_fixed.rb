@@ -90,7 +90,7 @@ class GameEngine
     @agent_map = agent_map
 
     game = setup_game(player1_name, player2_name)
-    game.start_game
+    game.start_game(nil, player1_name)
 
     wait_for_completion(game_timeout)
 

@@ -312,7 +312,7 @@ class ConfiguredTournamentRunner
         game_ended = true
       end
 
-      game.start_game
+      game.start_game(nil, first_agent_name)
 
       # Wait for game completion
       if @game_timeout
