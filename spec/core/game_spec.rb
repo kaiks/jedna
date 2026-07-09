@@ -55,7 +55,21 @@ RSpec.describe Jedna::Game do
       expect(game.notifications.last).to include("not possible to join")
     end
   end
-  
+
+  describe '#remove_player' do
+    let(:alice) { Jedna::Player.new('Alice') }
+    let(:bob) { Jedna::Player.new('Bob') }
+
+    it 'removes a joined player' do
+      game.add_player(alice)
+      game.add_player(bob)
+
+      expect { game.remove_player(alice) }.not_to raise_error
+      expect(game.players).not_to include(alice)
+      expect(game.players).to contain_exactly(bob)
+    end
+  end
+
   describe '#start_game' do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }

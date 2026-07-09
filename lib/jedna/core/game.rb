@@ -245,7 +245,7 @@ module Jedna
     end
 
     def remove_player(p)
-      @players.delete! p
+      @players.delete p
       stop_game p.to_s if @players.empty?
     end
 
