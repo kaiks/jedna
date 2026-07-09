@@ -60,6 +60,10 @@ module Jedna
         notify 'Cards have already been dealt.'
         return
       end
+      if first_player && @players.none? { |player| player.matches?(first_player) }
+        notify 'The requested first player is not in this game.'
+        return
+      end
       @game_state = 1
 
       @card_stack = @full_deck.clone
@@ -78,12 +82,7 @@ module Jedna
 
       put_card_on_top top_card
 
-      if first_player.nil?
-        @players.shuffle!
-        @first_player = @players[0].identity.id
-      elsif @players[0].matches?(first_player)
-        @players.rotate!
-      end
+      @players.shuffle! if first_player.nil?
 
       deal_cards_to_players
 
@@ -92,7 +91,7 @@ module Jedna
       @start = Time.now.strftime('%F %T')
       # @players.rotate! if rotated
       # puts "rotate2" if rotated
-      next_turn
+      next_turn(false, first_player: first_player)
     end
 
     def prepare_card_stack
@@ -125,8 +124,13 @@ module Jedna
       notify "Next player must respond or draw #{card.offensive_value} more cards (total #{@stacked_cards})"
     end
 
-    def next_turn(pass = false)
+    def next_turn(pass = false, first_player: nil)
       manage_order_by_card @top_card, pass
+      if first_player
+        first_player_index = @players.index { |player| player.matches?(first_player) }
+        @players.rotate!(first_player_index)
+      end
+      @first_player ||= @players[0].identity.id
       notify_top_card pass
       show_player_cards @players[0]
       @already_picked = false

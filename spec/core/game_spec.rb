@@ -108,6 +108,33 @@ RSpec.describe Jedna::Game do
       game.start_game
       expect(game.notifications.last).to include("already been dealt")
     end
+
+    it 'starts with the requested player and records their identity' do
+      game.instance_variable_set(:@players, [alice, bob])
+      stack = Jedna::CardStack.new.fill
+      red_zero = stack.index { |card| card.to_s == 'r0' }
+      stack.unshift(stack.delete_at(red_zero))
+
+      game.start_game(stack, 'Bob')
+
+      expect(game.players[0]).to eq(bob)
+      expect(game.first_player).to eq('Bob')
+    end
+
+    it 'records the actual first player when one is not requested' do
+      game.start_game
+
+      expect(game.first_player).to eq(game.players[0].identity.id)
+    end
+
+    it 'rejects a requested player who has not joined' do
+      game.start_game(nil, 'Charlie')
+
+      expect(game).not_to be_started
+      expect(alice.hand).to be_empty
+      expect(bob.hand).to be_empty
+      expect(game.notifications.last).to include('requested first player')
+    end
   end
 
   describe '#check_for_empty_stack' do
