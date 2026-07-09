@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
   spec.metadata['source_code_uri'] = 'https://github.com/kaiks/jedna'
 
   spec.files = Dir.chdir(__dir__) do
-    Dir['lib/**/*', 'LICENSE', 'README.md', 'examples/**/*'].select { |f| File.file?(f) }
+    `git ls-files -z -- lib README.md examples`.split("\x0")
   end
   spec.bindir = 'exe'
   spec.executables = []
