@@ -154,6 +154,9 @@ See the `examples/` directory for sample agents in various languages:
 - `simple_agent.rb` - Basic Ruby agent
 - `simple_agent.py` - Basic Python agent
 - `smart_agent.rb` - More sophisticated Ruby agent
+- `crushing_agent.rb` - Smart-derived agent with tested two-player tactics
+- `benchmark_agents.rb` - Fast seeded benchmark for bundled Ruby agents
+- `crushing_agent_results.md` - Reproducible benchmark results and commands
 - `run_single_game.rb` - Run and debug one game
 - `tournament_runner.rb` - YAML-configured example tournament
 
