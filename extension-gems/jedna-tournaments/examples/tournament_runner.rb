@@ -272,10 +272,6 @@ class ConfiguredTournamentRunner
 
       winner_id = nil
 
-      game.before_player_turn do |g, current_player|
-        handle_turn(g, current_player, player_agent_map)
-      end
-
       game_ended = false
 
       game.on_game_ended do
@@ -314,15 +310,14 @@ class ConfiguredTournamentRunner
 
       game.start_game(nil, first_agent_name)
 
-      # Wait for game completion
-      if @game_timeout
-        start = Time.now
-        sleep 0.05 while !game_ended && (Time.now - start) < @game_timeout
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @game_timeout if @game_timeout
+      until game_ended
+        if deadline && Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+          log_output "Game timeout after #{@game_timeout}s"
+          break
+        end
 
-        log_output "Game timeout after #{@game_timeout}s" unless game_ended
-      else
-        # No timeout - wait until game ends
-        sleep 0.05 until game_ended
+        handle_turn(game, game.players[0], player_agent_map)
       end
 
       winner_id

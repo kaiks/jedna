@@ -77,8 +77,6 @@ class SingleGameRunner
       game.add_player(player)
     end
 
-    # Set up event handlers
-    game.before_player_turn { |g, player| handle_turn(g, player) }
     game.on_game_ended { handle_game_end(game) }
 
     game
@@ -87,11 +85,15 @@ class SingleGameRunner
   def run_game_loop(game)
     game.start_game(nil, 'agent1')
 
-    # Wait for completion
-    start_time = Time.now
-    sleep 0.1 while !@game_ended && (Time.now - start_time) < GAME_TIMEOUT
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + GAME_TIMEOUT
+    until @game_ended
+      if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+        puts "\nGame timed out after #{GAME_TIMEOUT} seconds"
+        break
+      end
 
-    puts "\nGame timed out after #{GAME_TIMEOUT} seconds" unless @game_ended
+      handle_turn(game, game.players[0])
+    end
 
     game.players.first
   end

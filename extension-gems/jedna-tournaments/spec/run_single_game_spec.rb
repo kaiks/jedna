@@ -4,6 +4,24 @@ require 'spec_helper'
 require_relative '../examples/run_single_game'
 
 RSpec.describe SingleGameRunner do
+  describe '#run_game_loop' do
+    it 'drives turns explicitly after starting the game' do
+      runner = described_class.allocate
+      runner.instance_variable_set(:@game_ended, false)
+      player = Jedna::Player.new('agent1')
+      game = instance_double(Jedna::Game, players: [player])
+      allow(game).to receive(:start_game).with(nil, 'agent1')
+      allow(runner).to receive(:handle_turn) do
+        runner.instance_variable_set(:@game_ended, true)
+      end
+
+      winner = runner.send(:run_game_loop, game)
+
+      expect(winner).to eq(player)
+      expect(runner).to have_received(:handle_turn).with(game, player).once
+    end
+  end
+
   describe '#play_card' do
     it 'passes the double-play option on the original play' do
       runner = described_class.allocate

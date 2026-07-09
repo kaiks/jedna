@@ -86,11 +86,12 @@ class GameEngine
     @current_game_log = []
     @game_ended = false
     @winner_id = nil
+    @turn_timeout = turn_timeout
 
     game = setup_game(player1_name, player2_name, agent_map)
     game.start_game(nil, player1_name)
 
-    wait_for_completion(game_timeout)
+    run_until_completion(game, agent_map, game_timeout)
 
     @winner_id
   end
@@ -105,11 +106,6 @@ class GameEngine
 
     game.add_player(player1)
     game.add_player(player2)
-
-    # Set up event handlers
-    game.before_player_turn do |g, current_player|
-      handle_turn(g, current_player, agent_map[current_player.identity.id])
-    end
 
     game.on_game_ended do
       handle_game_end(game, agent_map)
@@ -217,12 +213,14 @@ class GameEngine
     @game_ended = true
   end
 
-  def wait_for_completion(timeout)
-    if timeout
-      start = Time.now
-      sleep 0.05 while !@game_ended && (Time.now - start) < timeout
-    else
-      sleep 0.05 until @game_ended
+  def run_until_completion(game, agent_map, timeout)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout if timeout
+
+    until @game_ended
+      break if deadline && Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+      current_player = game.players[0]
+      handle_turn(game, current_player, agent_map[current_player.identity.id])
     end
   end
 end

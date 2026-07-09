@@ -92,7 +92,7 @@ class GameEngine
     game = setup_game(player1_name, player2_name)
     game.start_game(nil, player1_name)
 
-    wait_for_completion(game_timeout)
+    run_until_completion(game, game_timeout)
 
     @winner_id
   end
@@ -107,11 +107,6 @@ class GameEngine
 
     game.add_player(player1)
     game.add_player(player2)
-
-    # Set up event handlers
-    game.before_player_turn do |g, current_player|
-      handle_turn(g, current_player)
-    end
 
     game.on_game_ended do
       handle_game_end(game)
@@ -220,17 +215,15 @@ class GameEngine
     @game_ended = true
   end
 
-  def wait_for_completion(timeout)
-    # Always use a maximum timeout to prevent infinite loops
-    actual_timeout = timeout || 30.0
-    start = Time.now
+  def run_until_completion(game, timeout)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + (timeout || 30.0)
 
-    sleep 0.05 while !@game_ended && (Time.now - start) < actual_timeout
+    until @game_ended
+      break if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
 
-    # If game didn't end naturally, we still need to clean up
-    return if @game_ended
-
-    @game_ended = true
+      current_player = game.players[0]
+      handle_turn(game, current_player)
+    end
   end
 end
 

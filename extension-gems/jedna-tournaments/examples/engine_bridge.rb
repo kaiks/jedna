@@ -30,14 +30,6 @@ class EngineBridge
     game.add_player(p1)
     game.add_player(p2)
 
-    game.before_player_turn do |g, current|
-      if current.identity.id == 'agent1'
-        handle_python_turn(g, current)
-      else
-        handle_process_turn(g, current, opp)
-      end
-    end
-
     winner_id = nil
     scores = {}
 
@@ -51,8 +43,14 @@ class EngineBridge
 
     game.start_game
 
-    # Wait until end; the callbacks drive the game
-    sleep 0.05 while winner_id.nil?
+    until winner_id
+      current_player = game.players[0]
+      if current_player.identity.id == 'agent1'
+        handle_python_turn(game, current_player)
+      else
+        handle_process_turn(game, current_player, opp)
+      end
+    end
   ensure
     begin
       opp&.stop
