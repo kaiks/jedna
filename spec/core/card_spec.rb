@@ -295,5 +295,24 @@ RSpec.describe Jedna::Card do
       expect(Jedna::Card.new(:red, 5)).not_to eq(Jedna::Card.new(:blue, 5))
       expect(Jedna::Card.new(:red, 5)).not_to eq(Jedna::Card.new(:red, 6))
     end
+
+    it 'returns false for non-card objects' do
+      expect(Jedna::Card.new(:red, 5)).not_to eq(nil)
+      expect(Jedna::Card.new(:red, 5)).not_to eq('r5')
+    end
+  end
+
+  describe '#<=>' do
+    it 'orders by figure and then color' do
+      red_five = Jedna::Card.new(:red, 5)
+      green_five = Jedna::Card.new(:green, 5)
+      blue_three = Jedna::Card.new(:blue, 3)
+
+      expect([red_five, blue_three, green_five].sort).to eq([blue_three, green_five, red_five])
+    end
+
+    it 'returns nil for non-card objects' do
+      expect(Jedna::Card.new(:red, 5) <=> 'r5').to be_nil
+    end
   end
 end

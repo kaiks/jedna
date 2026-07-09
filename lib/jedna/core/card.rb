@@ -61,10 +61,14 @@ module Jedna
     end
   
     def <=>(card)
-      @figure <=> card.figure && @color <=> card.color
+      return nil unless card.is_a?(Card)
+
+      [@figure.to_s, @color.to_s] <=> [card.figure.to_s, card.color.to_s]
     end
-  
+
     def ==(card)
+      return false unless card.is_a?(Card)
+
       (@figure.to_s == card.figure.to_s) && (@color == card.color)
     end
   
