@@ -171,7 +171,7 @@ module Jedna
       @card_stack.shuffle!
     end
 
-    def give_cards_to_player(p, n)
+    def give_cards_to_player(p, n, game_ending: false)
       check_for_empty_stack(n)
       @already_picked = true
       picked = @card_stack.pick(n)
@@ -184,14 +184,16 @@ module Jedna
 
       p.hand.sort! { |a, b| a.to_s <=> b.to_s }
 
-      # Check for instant loss condition after drawing cards
-      if p.hand.size > 35
-        finish_game_with_instant_loss(p)
-        return picked
-      end
+      unless game_ending
+        # Check for instant loss condition after drawing cards
+        if p.hand.size > 35
+          finish_game_with_instant_loss(p)
+          return picked
+        end
 
-      @game_state = 1
-      @stacked_cards = 0
+        @game_state = 1
+        @stacked_cards = 0
+      end
       picked
     end
 
@@ -386,7 +388,8 @@ module Jedna
 
     def finish_game
       @game_state = 0
-      give_cards_to_player @players[1], @stacked_cards if @stacked_cards > 0
+      give_cards_to_player(@players[1], @stacked_cards, game_ending: true) if @stacked_cards > 0
+      @stacked_cards = 0
 
       @total_score = @players.map { |p| p.hand.value }.inject(:+) # tally up points
 

@@ -489,6 +489,22 @@ RSpec.describe Jedna::Game do
       points_notification = game.notifications.find { |n| n.include?("gains 30 points") }
       expect(points_notification).not_to be_nil
     end
+
+    it 'stays ended after a winning offensive card' do
+      current_player = game.players[0]
+      other_player = game.players[1]
+      draw_two = Jedna::Card.new(:red, '+2')
+      current_player.hand << draw_two
+      other_player.hand << Jedna::Card.new(:blue, 1)
+      game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
+
+      expect(game.player_card_play(current_player, draw_two)).to be true
+
+      expect(game.game_state).to eq(0)
+      expect(game).not_to be_started
+      expect(other_player.hand.size).to eq(3)
+      expect(game.instance_variable_get(:@stacked_cards)).to eq(0)
+    end
   end
   
   describe 'double play' do
