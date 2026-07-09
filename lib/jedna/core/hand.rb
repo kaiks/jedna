@@ -47,7 +47,6 @@ module Jedna
     end
   
     def destroy(card)
-      throw 'Deleting wild card? Something went wrong' if card.color == :wild
       delete_at(index(card) || length)
     end
   

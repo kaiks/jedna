@@ -223,6 +223,20 @@ RSpec.describe Jedna::Game do
         card.set_wild_color(:red)
         expect(game.player_card_play(alice, card)).to be true
       end
+
+      it 'rejects an uncolored wild without mutating the game' do
+        wild = Jedna::Card.new(:wild, 'wild')
+        alice.hand << wild
+        hand_size = alice.hand.size
+        top_card = game.top_card
+
+        expect(game.player_card_play(alice, wild)).to be false
+
+        expect(alice.hand.size).to eq(hand_size)
+        expect(alice.hand).to include(wild)
+        expect(game.top_card).to equal(top_card)
+        expect(game.notifications.last).to include('Choose a color')
+      end
       
       it 'removes card from player hand' do
         card = Jedna::Card.new(:red, 7)

@@ -326,6 +326,10 @@ module Jedna
           return false
         end
         if playable_now? card
+          if card.wild? && card.color == :wild
+            notify 'Choose a color before playing a wild card.'
+            return false
+          end
           # TODO: fix the wd4 stuff
           if @already_picked == true && @picked_card.to_s != card.to_s
             notify 'Sorry, you have to play the card you picked.'
@@ -367,12 +371,12 @@ module Jedna
           true
         else
           notify "Sorry #{player}, that card doesn't play."
-          card.set_wild_color :wild
+          card.unset_wild_color
           false
         end
       else
         notify "It's not your turn."
-        card.set_wild_color :wild
+        card.unset_wild_color
         false
       end
     end

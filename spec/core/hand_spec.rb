@@ -130,10 +130,10 @@ RSpec.describe Jedna::Hand do
       expect(hand.size).to eq(2)
     end
     
-    it 'throws error when destroying uncolored wild card' do
-      # The check is for color == :wild, not for wild cards with color set
+    it 'removes an uncolored wild card' do
       hand << wild
-      expect { hand.destroy(wild) }.to raise_error(UncaughtThrowError)
+      expect { hand.destroy(wild) }.not_to raise_error
+      expect(hand).not_to include(wild)
     end
     
     it 'handles destroying non-existent card' do

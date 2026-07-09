@@ -70,8 +70,7 @@ module Jedna
   
     def self.parse(card_text)
       card_text = card_text.downcase
-      text_length = card_text.length
-  
+
       return Card.parse_wild(card_text) if card_text[0] == 'w'
   
       short_color = card_text[0]
@@ -86,22 +85,18 @@ module Jedna
     def self.parse_wild(card_text)
       card_text = card_text.downcase
       debug "parsing #{card_text}"
-      if card_text[0..1].casecmp('ww').zero?
-        debug '--WARNING: WILD CARD ' + card_text
-        color = :wild
-        short_figure = card_text[1..100]
-      else
-        short_figure = card_text[1].casecmp('d').zero? ? 'wd4' : 'w'
-        short_color = card_text[-1]
-        color = if short_color == '4'
-                  :wild
-                else
-                  Jedna.expand_color(short_color)
-                end
+      return Card.new(:wild, 'wild') if %w[w ww].include?(card_text)
+
+      wild_match = /\Aw([rgby])\z/.match(card_text)
+      return Card.new(Jedna.expand_color(wild_match[1]), 'wild') if wild_match
+
+      draw_four_match = /\Awd4([rgby])?\z/.match(card_text)
+      if draw_four_match
+        color = draw_four_match[1] ? Jedna.expand_color(draw_four_match[1]) : :wild
+        return Card.new(color, 'wild+4')
       end
-  
-      figure = Jedna.expand_figure(short_figure)
-      Card.new(color, figure)
+
+      throw "not a valid wild card: #{card_text}"
     end
   
     def to_s
@@ -114,11 +109,18 @@ module Jedna
   
   
     def set_wild_color(color)
-      @color = color if special_valid_card?
+      return self unless special_card?
+
+      color = color.downcase.to_sym if color.is_a?(String)
+      throw "not a valid wild color: #{color}" unless Jedna::COLORS.first(4).include?(color)
+
+      @color = color
+      self
     end
-  
+
     def unset_wild_color
-      @color = :wild if special_valid_card?
+      @color = :wild if special_card?
+      self
     end
   
   

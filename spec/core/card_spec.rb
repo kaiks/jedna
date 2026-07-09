@@ -66,11 +66,13 @@ RSpec.describe Jedna::Card do
     
     context 'wild cards' do
       it 'parses wild card without color' do
-        # The parsing code expects at least 2 characters for wild cards
-        # A plain 'w' would need special handling
-        card = Jedna::Card.parse('ww')
+        card = Jedna::Card.parse('w')
         expect(card.color).to eq(:wild)
         expect(card.figure).to eq('wild')
+      end
+
+      it 'supports the legacy ww wild notation' do
+        expect(Jedna::Card.parse('ww')).to eq(Jedna::Card.new(:wild, 'wild'))
       end
       
       it 'parses wild card with color' do
@@ -228,6 +230,16 @@ RSpec.describe Jedna::Card do
       regular.set_wild_color(:blue)
       expect(regular.color).to eq(:red)
     end
+
+    it 'rejects an invalid wild color without changing the card' do
+      expect { wild.set_wild_color(:purple) }.to raise_error(UncaughtThrowError)
+      expect(wild.color).to eq(:wild)
+    end
+
+    it 'accepts full color names as strings' do
+      wild.set_wild_color('BLUE')
+      expect(wild.color).to eq(:blue)
+    end
   end
   
   describe '#to_s' do
@@ -245,6 +257,19 @@ RSpec.describe Jedna::Card do
       wild = Jedna::Card.new(:wild, 'wild')
       wild.set_wild_color(:red)
       expect(wild.to_s).to eq('wr')
+    end
+
+    it 'round-trips every card through parse' do
+      cards = [
+        Jedna::Card.new(:red, 5),
+        Jedna::Card.new(:blue, 'skip'),
+        Jedna::Card.new(:wild, 'wild'),
+        Jedna::Card.new(:wild, 'wild+4')
+      ]
+
+      cards.each do |card|
+        expect(Jedna::Card.parse(card.to_s)).to eq(card)
+      end
     end
   end
   
