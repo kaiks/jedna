@@ -31,6 +31,11 @@ def main():
     parser.add_argument("--model", required=True)
     parser.add_argument("--episodes", type=int, default=200)
     parser.add_argument("--timeout", type=float, default=60.0)
+    parser.add_argument(
+        "--stochastic",
+        action="store_true",
+        help="Sample from the policy instead of choosing deterministic actions",
+    )
     args = parser.parse_args()
 
     engine_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "engine_bridge.rb"))
@@ -46,7 +51,11 @@ def main():
         done = False
         while not done:
             mask = info.get("action_mask")
-            action, _ = model.predict(obs, action_masks=mask, deterministic=True)
+            action, _ = model.predict(
+                obs,
+                action_masks=mask,
+                deterministic=not args.stochastic,
+            )
             obs, reward, terminated, truncated, info = env.step(int(action))
             done = terminated or truncated
         total += 1
