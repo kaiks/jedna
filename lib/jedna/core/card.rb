@@ -16,7 +16,7 @@ module Jedna
     if SHORT_COLORS.member? short_color
       COLORS[SHORT_COLORS.find_index short_color]
     else
-      throw 'not a valid color: ' + short_color.to_s
+      raise ArgumentError, 'not a valid color: ' + short_color.to_s
     end
   end
 
@@ -28,7 +28,7 @@ module Jedna
       if short_figure == '*'
         return 'wild'
       else
-        throw 'not a valid figure: ' + short_figure.to_s
+        raise ArgumentError, 'not a valid figure: ' + short_figure.to_s
       end
     end
   end
@@ -49,15 +49,15 @@ module Jedna
     def initialize(color, figure)
       figure = figure.downcase if figure.is_a? String
       color = color.downcase if color.is_a? String
-      throw 'Wrong color' unless Jedna::COLORS.include? color
-      throw 'Wrong figure' unless Jedna::FIGURES.include? figure
+      raise ArgumentError, 'Wrong color' unless Jedna::COLORS.include? color
+      raise ArgumentError, 'Wrong figure' unless Jedna::FIGURES.include? figure
   
       @color = color
       @figure = figure
       @visited = 0
       @debug = false
   
-      throw "Not a valid card #{@color} #{@figure}" unless valid?
+      raise ArgumentError, "Not a valid card #{@color} #{@figure}" unless valid?
     end
   
     def <=>(card)
@@ -96,7 +96,7 @@ module Jedna
         return Card.new(color, 'wild+4')
       end
 
-      throw "not a valid wild card: #{card_text}"
+      raise ArgumentError, "not a valid wild card: #{card_text}"
     end
   
     def to_s
@@ -112,7 +112,7 @@ module Jedna
       return self unless special_card?
 
       color = color.downcase.to_sym if color.is_a?(String)
-      throw "not a valid wild color: #{color}" unless Jedna::COLORS.first(4).include?(color)
+      raise ArgumentError, "not a valid wild color: #{color}" unless Jedna::COLORS.first(4).include?(color)
 
       @color = color
       self
@@ -128,7 +128,7 @@ module Jedna
       if Jedna::COLORS.member? @color
         Jedna::SHORT_COLORS[Jedna::COLORS.find_index @color]
       else
-        throw 'not a valid color'
+        raise ArgumentError, 'not a valid color'
       end
     end
   
@@ -136,7 +136,7 @@ module Jedna
       if Jedna::COLORS.member? color
         Jedna::SHORT_COLORS[Jedna::COLORS.find_index color]
       else
-        throw 'not a valid color'
+        raise ArgumentError, 'not a valid color'
       end
     end
   

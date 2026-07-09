@@ -35,8 +35,8 @@ RSpec.describe Jedna::Hand do
       expect(hand).to include(red5)
     end
     
-    it 'throws error for non-card objects' do
-      expect { hand.add_card("not a card") }.to raise_error(UncaughtThrowError)
+    it 'raises an error for non-card objects' do
+      expect { hand.add_card("not a card") }.to raise_error(ArgumentError, /Not a card/)
     end
   end
   

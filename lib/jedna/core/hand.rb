@@ -8,7 +8,7 @@ module Jedna
     end
   
     def add_card(card)
-      throw 'Not a card. Cant add' unless card.is_a? Card
+      raise ArgumentError, "Not a card. Can't add" unless card.is_a? Card
       push(card)
     end
   

@@ -20,14 +20,12 @@ RSpec.describe Jedna::Card do
       expect(card.figure).to eq('wild+4')
     end
     
-    it 'throws for invalid color' do
-      # The code uses throw with a string, which is unusual but that's how it works
-      expect { Jedna::Card.new(:purple, 5) }.to raise_error(UncaughtThrowError)
+    it 'raises for invalid color' do
+      expect { Jedna::Card.new(:purple, 5) }.to raise_error(ArgumentError, 'Wrong color')
     end
     
-    it 'throws for invalid figure' do
-      # The code uses throw with a string, which is unusual but that's how it works
-      expect { Jedna::Card.new(:red, 10) }.to raise_error(UncaughtThrowError)
+    it 'raises for invalid figure' do
+      expect { Jedna::Card.new(:red, 10) }.to raise_error(ArgumentError, 'Wrong figure')
     end
     
     it 'downcases string inputs' do
@@ -232,7 +230,7 @@ RSpec.describe Jedna::Card do
     end
 
     it 'rejects an invalid wild color without changing the card' do
-      expect { wild.set_wild_color(:purple) }.to raise_error(UncaughtThrowError)
+      expect { wild.set_wild_color(:purple) }.to raise_error(ArgumentError, /wild color/)
       expect(wild.color).to eq(:wild)
     end
 
