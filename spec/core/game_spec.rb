@@ -149,6 +149,17 @@ RSpec.describe Jedna::Game do
       expect(bob.hand).to be_empty
       expect(game.notifications.last).to include('requested first player')
     end
+
+    it 'rejects games when the deck cannot deal every player a full hand' do
+      oversized_game = TestJednaGame.new('Creator', 1)
+      16.times { |index| oversized_game.add_player(Jedna::Player.new("Player#{index}")) }
+
+      oversized_game.start_game
+
+      expect(oversized_game).not_to be_started
+      expect(oversized_game.players.map { |player| player.hand.size }).to all(eq(0))
+      expect(oversized_game.notifications.last).to include('needs at least 113 cards')
+    end
   end
 
   describe '#check_for_empty_stack' do

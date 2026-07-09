@@ -64,6 +64,12 @@ module Jedna
         notify 'The requested first player is not in this game.'
         return
       end
+      available_cards = stack || @full_deck
+      required_cards = 1 + (@players.length * 7)
+      if available_cards.length < required_cards
+        notify "The deck needs at least #{required_cards} cards for #{@players.length} players."
+        return
+      end
       @game_state = 1
 
       @card_stack = @full_deck.clone
