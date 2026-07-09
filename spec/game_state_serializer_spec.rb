@@ -74,6 +74,16 @@ RSpec.describe Jedna::GameStateSerializer do
 
         expect(result[:state][:playable_cards]).to eq(%w[r2 wd4])
       end
+
+      it 'does not offer play when no cards are playable' do
+        player1.hand.clear
+        player1.hand << Jedna::Card.new(:green, 3)
+
+        result = serializer.serialize_for_current_player(game)
+
+        expect(result[:state][:playable_cards]).to be_empty
+        expect(result[:state][:available_actions]).to eq(['draw'])
+      end
     end
 
     context 'during +2 war' do
@@ -128,6 +138,14 @@ RSpec.describe Jedna::GameStateSerializer do
         expect(result[:state][:already_picked]).to be true
         expect(result[:state][:picked_card]).to eq('g3')
         expect(result[:state][:available_actions]).to include('pass')
+      end
+
+      it 'hides stale picked card data outside the drawing turn' do
+        game.instance_variable_set(:@already_picked, false)
+
+        result = serializer.serialize_for_current_player(game)
+
+        expect(result[:state][:picked_card]).to be_nil
       end
 
       it 'exposes illegal plays after draw when picked card is not playable' do

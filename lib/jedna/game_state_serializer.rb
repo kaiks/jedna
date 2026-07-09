@@ -4,6 +4,8 @@ module Jedna
       return nil unless game.started?
 
       current_player = game.players[0]
+      playable_cards = calculate_playable_cards(game, current_player)
+      already_picked = game.instance_variable_get(:@already_picked) || false
 
       {
         type: 'request_action',
@@ -13,11 +15,11 @@ module Jedna
           top_card: serialize_card(game.top_card),
           game_state: serialize_game_state(game.game_state),
           stacked_cards: game.instance_variable_get(:@stacked_cards) || 0,
-          already_picked: game.instance_variable_get(:@already_picked) || false,
-          picked_card: serialize_card(game.instance_variable_get(:@picked_card)),
+          already_picked: already_picked,
+          picked_card: already_picked ? serialize_card(game.instance_variable_get(:@picked_card)) : nil,
           other_players: serialize_other_players(game.players[1..-1]),
-          available_actions: calculate_available_actions(game),
-          playable_cards: calculate_playable_cards(game, current_player)
+          available_actions: calculate_available_actions(game, playable_cards),
+          playable_cards: playable_cards
         }
       }
     end
@@ -80,7 +82,7 @@ module Jedna
       end
     end
 
-    def calculate_available_actions(game)
+    def calculate_available_actions(game, playable_cards)
       actions = []
       already_picked = game.instance_variable_get(:@already_picked) || false
       stacked_cards = game.instance_variable_get(:@stacked_cards) || 0
@@ -88,13 +90,13 @@ module Jedna
       if already_picked
         # After drawing a card, only the picked card can be played; otherwise pass.
         picked_card = game.instance_variable_get(:@picked_card)
-        actions << 'play' if picked_card && game.send(:playable_now?, picked_card)
+        actions << 'play' unless playable_cards.empty?
         actions << 'pass'
         return actions
       end
 
       # Normal turn (haven't drawn yet)
-      actions << 'play'
+      actions << 'play' unless playable_cards.empty?
       actions << 'draw' if stacked_cards == 0
       actions << 'pass' if stacked_cards > 0
       actions

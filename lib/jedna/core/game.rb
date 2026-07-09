@@ -134,6 +134,7 @@ module Jedna
       notify_top_card pass
       show_player_cards @players[0]
       @already_picked = false
+      @picked_card = nil
 
       # Call before_player_turn hooks
       @before_player_turn_hooks.each do |hook|

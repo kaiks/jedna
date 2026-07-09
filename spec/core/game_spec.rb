@@ -500,6 +500,7 @@ RSpec.describe Jedna::Game do
       initial_player = game.players[0]
       game.turn_pass
       expect(game.players[0]).not_to eq(initial_player)
+      expect(game.instance_variable_get(:@picked_card)).to be_nil
     end
     
     it 'forces drawing stacked cards in war state' do
