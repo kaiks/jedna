@@ -3,7 +3,6 @@
 require_relative "jedna/version"
 
 # Core game files
-require_relative "jedna/core/misc"
 require_relative "jedna/core/card"
 require_relative "jedna/core/hand"
 require_relative "jedna/core/card_stack"
