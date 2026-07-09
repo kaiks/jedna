@@ -15,7 +15,6 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.2.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://github.com/kaiks/jedna"
 
   spec.files = Dir.chdir(__dir__) do
     Dir['lib/**/*', 'LICENSE', 'README.md', 'automated_play.md', 'game_rules.md'].select { |file| File.file?(file) }

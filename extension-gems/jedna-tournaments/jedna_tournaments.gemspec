@@ -14,7 +14,6 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = '>= 3.2.0'
 
   spec.metadata['homepage_uri'] = spec.homepage
-  spec.metadata['source_code_uri'] = 'https://github.com/kaiks/jedna'
 
   spec.files = Dir.chdir(__dir__) do
     `git ls-files -z -- lib README.md examples`.split("\x0")
