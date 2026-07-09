@@ -313,6 +313,11 @@ module Jedna
           notify 'You do not have that card.'
           return false
         end
+        if play_second && @already_picked
+          notify "Sorry, you can't play the picked card twice."
+          debug "[player_card_play] Attempted double play after picking. Card: #{card}"
+          return false
+        end
         if playable_now? card
           # TODO: fix the wd4 stuff
           if @already_picked == true && @picked_card.to_s != card.to_s && @picked_card.to_s != 'wd4'
@@ -326,11 +331,6 @@ module Jedna
           player.hand.destroy(card)
 
           if play_second == true
-            if @already_picked == true
-              notify "Sorry, you can't play the picked card twice."
-              debug "[player_card_play] Attempted double play after picking. Card: #{card}"
-              return false
-            end
             debug '[player_card_play] Double play attempt. Card: ' + card.to_s
             # throw 'Hey, these cards are not the same!' unless card.to_s == second.to_s
             card = @players[0].hand.find_card card.to_s

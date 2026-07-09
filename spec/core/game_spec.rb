@@ -541,8 +541,13 @@ RSpec.describe Jedna::Game do
       expect(picked_card.to_s).to eq('r5')
       
       # Attempting to play double r5 should fail
+      hand_size = current_player.hand.size
+      top_card = game.top_card
       expect(game.player_card_play(current_player, picked_r5, true)).to be false
       expect(game.notifications.last).to include("can't play the picked card twice")
+      expect(current_player.hand.size).to eq(hand_size)
+      expect(game.top_card).to equal(top_card)
+      expect(game.players[0]).to eq(current_player)
     end
   end
   
