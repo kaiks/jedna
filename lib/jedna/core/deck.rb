@@ -1,16 +1,13 @@
+# frozen_string_literal: true
+
+require_relative 'card_stack'
+
 module Jedna
-  class Deck
+  # A named default draw deck. CardStack remains available for custom stacks.
+  class Deck < CardStack
     def generate_default_deck
-      deck = []
-      standard_colors.each do |color|
-        standard_figures.each do |figure|
-          deck += Card.new(color, figure)
-        end
-      end
-  
-      deck += deck
-  
-      deck.find
+      clear
+      fill
     end
   end
 end
