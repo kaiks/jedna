@@ -12,42 +12,32 @@ module JednaTournaments
       @stdout = nil
       @stderr = nil
       @wait_thread = nil
+      @stderr_thread = nil
+      @stderr_tail = []
     end
     
     def start
       raise AgentError, "Agent already running" if running?
-      
+
+      cleanup_process_resources if @wait_thread
       @stdin, @stdout, @stderr, @wait_thread = Open3.popen3(@command)
       @stdin.sync = true
       @stdout.sync = true
+      start_stderr_drain
     rescue => e
+      cleanup_process_resources
       raise AgentError, "Failed to start agent: #{e.message}"
     end
     
-    def stop
-      return unless running?
-      
-      # Try graceful shutdown first
-      begin
-        notify_game_end('game_cancelled', {})
-      rescue
-        # Ignore errors during shutdown
-      end
-      
-      # Close pipes
-      [@stdin, @stdout, @stderr].each { |io| io.close rescue nil }
-      
-      # Wait for process to exit
-      begin
-        Timeout.timeout(1) do
-          @wait_thread.join
-        end
-      rescue Timeout::Error
-        # Force kill if it doesn't exit gracefully
-        Process.kill('KILL', @wait_thread.pid) rescue nil
-      end
-      
-      @stdin = @stdout = @stderr = @wait_thread = nil
+    def stop(graceful: true)
+      return cleanup_process_resources unless @wait_thread
+
+      notify_game_end('game_cancelled', {}) if graceful && running?
+      @stdin&.close unless @stdin&.closed?
+
+      wait_for_exit(graceful ? 1 : 0.1)
+    ensure
+      cleanup_process_resources
     end
     
     def running?
@@ -82,6 +72,7 @@ module JednaTournaments
       
       response
     rescue Timeout::Error
+      stop(graceful: false)
       raise TimeoutError, "Agent did not respond within #{timeout} seconds"
     end
     
@@ -100,6 +91,42 @@ module JednaTournaments
     rescue => e
       # Log but don't raise - notifications are best effort
       warn "Failed to send notification to agent: #{e.message}"
+    end
+
+    private
+
+    def start_stderr_drain
+      @stderr_thread = Thread.new do
+        @stderr.each_line do |line|
+          @stderr_tail << line
+          @stderr_tail.shift while @stderr_tail.size > 100
+        end
+      rescue IOError
+        nil
+      end
+      @stderr_thread.report_on_exception = false
+    end
+
+    def wait_for_exit(timeout)
+      return unless @wait_thread&.alive?
+
+      @wait_thread.join(timeout)
+      return unless @wait_thread.alive?
+
+      Process.kill('KILL', @wait_thread.pid)
+      @wait_thread.join
+    rescue Errno::ESRCH, Errno::ECHILD
+      nil
+    end
+
+    def cleanup_process_resources
+      [@stdin, @stdout, @stderr].compact.each do |io|
+        io.close unless io.closed?
+      rescue IOError
+        nil
+      end
+      @stderr_thread&.join(0.1)
+      @stdin = @stdout = @stderr = @wait_thread = @stderr_thread = nil
     end
   end
 end

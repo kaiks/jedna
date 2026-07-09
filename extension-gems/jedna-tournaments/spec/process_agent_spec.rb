@@ -73,7 +73,19 @@ RSpec.describe JednaTournaments::ProcessAgent do
         slow_agent.request_action(state, timeout: 0.1)
       end.to raise_error(JednaTournaments::TimeoutError)
 
+      expect(slow_agent.running?).to be false
       slow_agent.stop
+    end
+
+    it 'drains stderr while waiting for a response' do
+      noisy_agent_path = File.expand_path('support/noisy_agent.rb', __dir__)
+      noisy_agent = described_class.new("ruby #{noisy_agent_path}")
+      noisy_agent.start
+
+      response = noisy_agent.request_action({ your_id: 'test' }, timeout: 2)
+
+      expect(response).to eq({ 'action' => 'draw' })
+      noisy_agent.stop
     end
 
     it 'raises error if agent returns invalid JSON' do
