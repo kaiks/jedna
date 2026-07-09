@@ -210,6 +210,7 @@ module Jedna
           return
         else
           give_cards_to_player @players[0], @stacked_cards
+          return unless started?
         end
       end
       next_turn true

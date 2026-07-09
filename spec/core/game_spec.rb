@@ -777,6 +777,22 @@ RSpec.describe Jedna::Game do
       points_notification = game.notifications.find { |n| n.include?("gains") && n.include?("points") }
       expect(points_notification).not_to be_nil
     end
+
+    it 'does not start another turn after a forced-draw instant loss' do
+      game.instance_variable_set(:@players, [alice, bob, charlie])
+      alice.hand = Jedna::Hand.new
+      34.times { alice.hand << Jedna::Card.new(:red, 5) }
+      game.instance_variable_set(:@stacked_cards, 2)
+      game.instance_variable_set(:@game_state, 2)
+      turn_hooks = 0
+      game.before_player_turn { turn_hooks += 1 }
+
+      game.turn_pass
+
+      expect(game).not_to be_started
+      expect(game.players.last).to eq(alice)
+      expect(turn_hooks).to eq(0)
+    end
     
     it 'triggers instant loss during card play check' do
       # Set alice as current player with exactly 35 cards
