@@ -323,7 +323,7 @@ module Jedna
         end
         if playable_now? card
           # TODO: fix the wd4 stuff
-          if @already_picked == true && @picked_card.to_s != card.to_s && @picked_card.to_s != 'wd4'
+          if @already_picked == true && @picked_card.to_s != card.to_s
             notify 'Sorry, you have to play the card you picked.'
             debug "[player_card_play] Invalid card played after picking. Picked card: #{@picked_card}, Attempted: #{card}"
             return false

@@ -404,6 +404,25 @@ RSpec.describe Jedna::Game do
       game.pick_single
       expect(game.notifications.last).to include("can't pick now")
     end
+
+    it 'does not allow another card after drawing a wild draw four' do
+      current_player = game.players[0]
+      other_card = Jedna::Card.new(:red, 5)
+      picked_wild = Jedna::Card.new(:wild, 'wild+4')
+      current_player.hand = Jedna::Hand.new([other_card, Jedna::Card.new(:blue, 3)])
+      game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
+      game.card_stack.unshift(picked_wild)
+
+      game.pick_single
+      hand_size = current_player.hand.size
+      top_card = game.top_card
+
+      expect(game.player_card_play(current_player, other_card)).to be false
+      expect(current_player.hand.size).to eq(hand_size)
+      expect(current_player.hand).to include(picked_wild)
+      expect(game.top_card).to equal(top_card)
+      expect(game.players[0]).to eq(current_player)
+    end
   end
   
   describe '#turn_pass' do
