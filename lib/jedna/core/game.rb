@@ -34,7 +34,7 @@ module Jedna
       @repository = repository || Jedna::NullRepository.new
       @on_game_ended = nil # Simple hook for game ended event
       @before_player_turn_hooks = [] # Hooks called before each player's turn
-      db_create_game
+      db_create_game unless @casual == 1
     end
 
     def started?
@@ -470,6 +470,8 @@ module Jedna
     end
 
     def db_save_card(card, player, received = 0)
+      return if @casual == 1
+
       @repository.save_card_action(@game_id, card, player, received > 0)
     end
 

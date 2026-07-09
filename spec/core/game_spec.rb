@@ -21,6 +21,24 @@ RSpec.describe Jedna::Game do
       expect(full_deck).to be_a(Jedna::CardStack)
       expect(full_deck.size).to eq(108)
     end
+
+    it 'does not call the repository in casual mode' do
+      repository = instance_spy(Jedna::NullRepository)
+      casual_game = Jedna::Game.new(
+        'creator',
+        1,
+        Jedna::NullNotifier.new,
+        Jedna::TextRenderer.new,
+        repository
+      )
+      casual_game.add_player(Jedna::Player.new('Alice'))
+      casual_game.add_player(Jedna::Player.new('Bob'))
+      casual_game.start_game
+
+      expect(repository).not_to have_received(:create_game)
+      expect(repository).not_to have_received(:record_player_join)
+      expect(repository).not_to have_received(:save_card_action)
+    end
   end
   
   describe '#add_player' do
