@@ -137,15 +137,7 @@ class SingleGameRunner
     return handle_error(game) unless card
 
     configure_wild_color(card, action['wild_color'])
-    game.player_card_play(player, card)
-
-    return unless action.is_a?(Hash) && action['double_play']
-
-    begin
-      game.player_card_play(player, card, true)
-    rescue StandardError
-      # Ignore if engine refuses
-    end
+    game.player_card_play(player, card, action['double_play'] == true)
   end
 
   def draw_and_maybe_play(game, player)

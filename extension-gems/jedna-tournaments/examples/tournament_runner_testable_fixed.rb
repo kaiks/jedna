@@ -164,7 +164,7 @@ class GameEngine
     @current_game_log << "#{top_card};#{player_name};#{hand_cards};#{played_card}"
 
     card.set_wild_color(action['wild_color'].to_sym) if action['wild_color']
-    game.player_card_play(player, card)
+    game.player_card_play(player, card, action['double_play'] == true)
   end
 
   def handle_draw(game, player, top_card, player_name, hand_cards)

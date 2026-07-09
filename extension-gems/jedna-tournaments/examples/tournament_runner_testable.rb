@@ -161,16 +161,7 @@ class GameEngine
     @current_game_log << "#{top_card};#{player_name};#{hand_cards};#{played_card}"
 
     card.set_wild_color(action['wild_color'].to_sym) if action['wild_color']
-    game.player_card_play(player, card)
-
-    # Optional second identical card in the same turn
-    return unless action['double_play']
-
-    begin
-      game.player_card_play(player, card, true)
-    rescue StandardError
-      # Ignore if engine denies
-    end
+    game.player_card_play(player, card, action['double_play'] == true)
   end
 
   def handle_draw(game, player, top_card, player_name, hand_cards)

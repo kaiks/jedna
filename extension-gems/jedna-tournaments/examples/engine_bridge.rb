@@ -75,14 +75,7 @@ class EngineBridge
       card = find_card_in_hand(player.hand, action['card'])
       if card
         card.set_wild_color(action['wild_color'].to_sym) if action['wild_color']
-        game.player_card_play(player, card)
-        if action['double_play']
-          begin
-            game.player_card_play(player, card, true)
-          rescue StandardError
-            # ignore
-          end
-        end
+        game.player_card_play(player, card, action['double_play'] == true)
       else
         game.turn_pass
       end
@@ -120,14 +113,7 @@ class EngineBridge
       card = find_card_in_hand(player.hand, action['card'])
       if card
         card.set_wild_color(action['wild_color'].to_sym) if action['wild_color']
-        game.player_card_play(player, card)
-        if action['double_play']
-          begin
-            game.player_card_play(player, card, true)
-          rescue StandardError
-            # ignore
-          end
-        end
+        game.player_card_play(player, card, action['double_play'] == true)
       else
         game.turn_pass
       end
