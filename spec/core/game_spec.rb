@@ -659,6 +659,20 @@ RSpec.describe Jedna::Game do
       expect(current_player.hand.size).to eq(7)
       expect(game.notifications).to include('[Playing two cards]')
     end
+
+    it 'allows playing two identical wild cards with one color choice' do
+      current_player = game.players[0]
+      wild1 = Jedna::Card.new(:wild, 'wild')
+      wild2 = Jedna::Card.new(:wild, 'wild')
+      current_player.hand = Jedna::Hand.new([wild1, wild2, Jedna::Card.new(:blue, 3)])
+      wild1.set_wild_color(:green)
+
+      expect(game.player_card_play(current_player, wild1, true)).to be true
+
+      expect(current_player.hand.map(&:to_s)).to eq(['b3'])
+      expect(game.top_card.to_s).to eq('wg')
+      expect(game.notifications).to include('[Playing two cards]')
+    end
     
     it 'rejects double play with picked card' do
       current_player = game.players[0]

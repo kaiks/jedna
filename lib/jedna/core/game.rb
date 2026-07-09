@@ -353,9 +353,14 @@ module Jedna
 
           if play_second == true
             debug '[player_card_play] Double play attempt. Card: ' + card.to_s
-            # throw 'Hey, these cards are not the same!' unless card.to_s == second.to_s
-            card = @players[0].hand.find_card card.to_s
+            first_card = card
+            card = if first_card.wild?
+                     @players[0].hand.find { |candidate| candidate.figure == first_card.figure }
+                   else
+                     @players[0].hand.find_card(first_card.to_s)
+                   end
             unless card.nil?
+              card.set_wild_color(first_card.color) if card.wild?
               @double_play = true
               notify '[Playing two cards]'
               put_card_on_top card
