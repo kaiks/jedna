@@ -148,6 +148,13 @@ RSpec.describe "Jedna::Renderer" do
         result = renderer.render_player_order(players)
         expect(result).to eq("<div class='player-order'>Alice &rarr; Bob</div>")
       end
+
+      it 'escapes untrusted player names' do
+        result = renderer.render_player_order(['<script>alert("x")</script>'])
+
+        expect(result).not_to include('<script>')
+        expect(result).to include('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;')
+      end
     end
   end
 end

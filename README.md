@@ -77,7 +77,7 @@ Formats cards and game state:
 
 - `TextRenderer` - Plain text output
 - `IrcRenderer` - IRC color codes
-- `HtmlRenderer` - HTML formatting for trusted values; it does not escape HTML
+- `HtmlRenderer` - HTML formatting with escaped dynamic values
 
 ### Repository
 

@@ -1,3 +1,5 @@
+require 'cgi'
+
 module Jedna
   # Interface for rendering game elements
   # Implementations handle how cards and game state are displayed
@@ -83,8 +85,8 @@ module Jedna
     include Renderer
     
     def render_card(card)
-      color_class = card.color.to_s
-      figure = card.normalize_figure.to_s.upcase
+      color_class = escape_html(card.color)
+      figure = escape_html(card.normalize_figure.to_s.upcase)
       "<span class='uno-card #{color_class}'>#{figure}</span>"
     end
     
@@ -96,15 +98,22 @@ module Jedna
     def render_game_state(state)
       <<~HTML
         <div class='game-state'>
-          <div class='current-player'>Current: #{state[:current_player]}</div>
+          <div class='current-player'>Current: #{escape_html(state[:current_player])}</div>
           <div class='top-card'>Top: #{render_card(state[:top_card])}</div>
-          <div class='status'>#{state[:status]}</div>
+          <div class='status'>#{escape_html(state[:status])}</div>
         </div>
       HTML
     end
     
     def render_player_order(players)
-      "<div class='player-order'>#{players.join(' &rarr; ')}</div>"
+      rendered_players = players.map { |player| escape_html(player) }
+      "<div class='player-order'>#{rendered_players.join(' &rarr; ')}</div>"
+    end
+
+    private
+
+    def escape_html(value)
+      CGI.escapeHTML(value.to_s)
     end
   end
 end
