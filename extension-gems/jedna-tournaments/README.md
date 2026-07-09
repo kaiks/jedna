@@ -4,12 +4,15 @@ Tournament infrastructure for running automated Jedna card game matches between 
 
 ## Overview
 
-This gem provides the infrastructure to run tournaments between automated Jedna agents. It handles:
+The library currently provides:
+
 - Agent process management (stdin/stdout communication)
-- Game orchestration with multiple agents
-- Tournament formats (round-robin, elimination)
-- Result tracking and statistics
-- Timeout handling and error recovery
+- A `BaseAgent` interface
+- A configurable per-response timeout
+
+Round-robin, elimination, result reporting, and parallel execution currently
+live in the `examples/` scripts. They are not public classes in
+`JednaTournaments`.
 
 ## Installation
 
@@ -30,39 +33,37 @@ gem install ./jedna_tournaments-0.1.0.gem
 
 ## Usage
 
-### Running a Simple Match
+### Running an Agent Process
 
 ```ruby
 require 'jedna_tournaments'
 
-# Create agents
-agent1 = JednaTournaments::ProcessAgent.new('./examples/simple_agent.rb')
-agent2 = JednaTournaments::ProcessAgent.new('python3 ./examples/simple_agent.py')
+agent = JednaTournaments::ProcessAgent.new('./examples/simple_agent.rb')
+agent.start
 
-# Run a single match
-match = JednaTournaments::Match.new([agent1, agent2])
-result = match.play
+state = {
+  your_id: 'bot',
+  hand: ['r5'],
+  top_card: 'r3',
+  game_state: 'normal',
+  stacked_cards: 0,
+  already_picked: false,
+  picked_card: nil,
+  other_players: [{ id: 'opponent', card_count: 7 }],
+  available_actions: %w[play draw],
+  playable_cards: ['r5']
+}
 
-puts "Winner: #{result.winner}"
-puts "Scores: #{result.scores}"
+response = agent.request_action(state)
+puts response.inspect
+agent.stop
 ```
 
-### Running a Tournament
+### Running a Tournament Example
 
-```ruby
-# Define agents
-agents = [
-  { name: 'Ruby Bot', command: './examples/simple_agent.rb' },
-  { name: 'Python Bot', command: 'python3 ./examples/simple_agent.py' },
-  { name: 'Smart Bot', command: './examples/smart_agent.rb' }
-]
-
-# Run round-robin tournament
-tournament = JednaTournaments::Tournament.new(agents)
-results = tournament.run_round_robin(games_per_match: 10)
-
-# Display results
-results.display_leaderboard
+```bash
+cd extension-gems/jedna-tournaments/examples
+bundle exec ruby tournament_runner.rb tournament_config.yaml
 ```
 
 ### Creating Custom Agents
@@ -104,64 +105,29 @@ end
 MyAgent.new.run if __FILE__ == $0
 ```
 
-## Tournament Formats
+## Example Tournament Formats
 
 ### Round Robin
-Every agent plays every other agent a fixed number of times.
+The example runner supports round-robin and single-elimination brackets. Set
+`tournament_type` in the YAML configuration to `round-robin` or
+`elimination-bracket`.
 
-```ruby
-results = tournament.run_round_robin(games_per_match: 20)
-```
-
-### Elimination
-Single or double elimination brackets.
-
-```ruby
-results = tournament.run_elimination(type: :single)
-```
-
-### Swiss
-Players are paired based on performance.
-
-```ruby
-results = tournament.run_swiss(rounds: 7)
+```yaml
+tournament_type: round-robin
+games_per_round: 20
 ```
 
 ## Configuration
 
 ```ruby
 JednaTournaments.configure do |config|
-  config.timeout = 5.0          # Agent response timeout in seconds
-  config.log_games = true       # Log all game states
-  config.log_dir = './logs'     # Directory for game logs
-  config.parallel = true        # Run matches in parallel
-  config.max_threads = 4        # Max parallel matches
+  config.timeout = 5.0 # ProcessAgent response timeout in seconds
 end
 ```
 
-## Testing Agents
-
-The gem includes utilities for testing agents:
-
-```ruby
-# Test an agent with specific game states
-tester = JednaTournaments::AgentTester.new('./my_agent.rb')
-
-# Test specific scenario
-state = {
-  your_id: 'test',
-  hand: ['r5', 'b7', 'wd4'],
-  top_card: 'r3',
-  # ... other state
-}
-
-response = tester.test_action(state)
-puts "Agent played: #{response['card']}"
-
-# Run test suite
-results = tester.run_test_suite
-puts "Passed: #{results.passed}/#{results.total}"
-```
+The configuration object also exposes `log_games`, `log_dir`, `parallel`, and
+`max_threads`, but the library classes do not consume those settings. The
+example runners use their own YAML configuration.
 
 ## Development
 
@@ -180,6 +146,7 @@ bundle exec rspec
    - `request_action(state)` - Get agent's action
    - `notify(message)` - Send notification to agent
    - `stop` - Clean up agent resources
+   - `running?` - Report whether the agent is available
 
 ## Examples
 
@@ -187,7 +154,11 @@ See the `examples/` directory for sample agents in various languages:
 - `simple_agent.rb` - Basic Ruby agent
 - `simple_agent.py` - Basic Python agent
 - `smart_agent.rb` - More sophisticated Ruby agent
-- `test_scenarios.rb` - Test specific game scenarios
+- `run_single_game.rb` - Run and debug one game
+- `tournament_runner.rb` - YAML-configured example tournament
+
+`ProcessAgent` executes the supplied command. Treat command strings as trusted
+configuration; do not pass untrusted user input into them.
 
 ## Contributing
 

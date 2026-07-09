@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 # Example of how to use the Jedna gem
 
@@ -6,11 +7,11 @@ require_relative 'lib/jedna'
 
 # Example 1: Create a simple console game
 game = Jedna::Game.new(
-  'Player1', 
-  0, 
-  Uno::ConsoleNotifier.new,
-  Uno::TextRenderer.new,
-  Uno::NullRepository.new
+  'Player1',
+  1,
+  Jedna::ConsoleNotifier.new,
+  Jedna::TextRenderer.new,
+  Jedna::NullRepository.new
 )
 
 # Add players
@@ -43,7 +44,7 @@ game.start_game
 # end
 # 
 # # Create repository with injected models
-# repository = Uno::SqliteRepository.new(
+# repository = Jedna::SqliteRepository.new(
 #   game_model: MyGameModel,
 #   turn_model: MyTurnModel,
 #   action_model: MyActionModel,
@@ -54,20 +55,7 @@ game.start_game
 # db_game = Jedna::Game.new(
 #   'Player1',
 #   0,
-#   Uno::ConsoleNotifier.new,
-#   Uno::TextRenderer.new,
-#   repository
-# )
-
-# Example 3: Thread-safe game for IRC bot usage
-class ThreadSafeUnoGame < Jedna::Game
-  include ThreadSafeGame
-end
-
-# irc_game = ThreadSafeUnoGame.new(
-#   creator_nick,
-#   casual_mode,
-#   Uno::IrcNotifier.new(bot, channel),
-#   Uno::IrcRenderer.new,
+#   Jedna::ConsoleNotifier.new,
+#   Jedna::TextRenderer.new,
 #   repository
 # )

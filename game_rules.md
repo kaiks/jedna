@@ -16,13 +16,14 @@ Special states that restrict what can be played:
 
 #### Draw Two War (+2 War)
 - **Triggered by**: Someone plays a +2 card
-- **Playable cards**: Only +2, Reverse, or Wild Draw 4
+- **Playable cards**: Any +2, a Wild Draw Four, or a Reverse matching the
+  current color
 - **Effect**: Draw penalty accumulates (2, 4, 6, 8...)
 - **Resolution**: When a player can't continue, they draw all accumulated cards
 
 #### Wild Draw Four War (WD4 War)
 - **Triggered by**: Someone plays a Wild Draw 4
-- **Playable cards**: Only Wild Draw 4
+- **Playable cards**: A Wild Draw Four or a Reverse matching the selected color
 - **Effect**: Draw penalty accumulates (4, 8, 12...)
 - **Resolution**: When a player can't continue, they draw all accumulated cards
 
@@ -45,19 +46,19 @@ Special states that restrict what can be played:
 
 ### Double Play
 - Two identical cards (same color AND figure) can be played simultaneously
-- Notation: "r5r5" for two Red 5s
-- Works for all cards except Wild Draw 4 (including number cards, +2, Skip, and Reverse)
+- Core API: pass `true` as the third argument to
+  `player_card_play(player, card, true)`
+- Automated-play protocol: set `"double_play": true` on a play response
 - Cannot double play a picked card
 
 ### Passing
-- Pass command (`pa`) only available:
+- Passing is only available:
   - After picking a card in normal state
   - In war states when you cannot respond (draws accumulated penalty)
-- If you cannot play in normal state, you must pick (`pe`) first
+- If you cannot play in normal state, you must draw first
 
 ### Picked Card Rule
 - If you pick a card and it's playable, you must play that specific card
-- Exception: Wild Draw 4 can be played instead of the picked card
 
 ## Turn Order
 - Clockwise by default
@@ -69,6 +70,7 @@ Special states that restrict what can be played:
 1. First player to play all their cards wins
 2. "UNO!" is automatically announced when a player reaches one card
 3. Game ends immediately when a player plays their last card
+4. A player loses instantly if drawing takes their hand above 35 cards
 
 ## Scoring (if used)
 Points are awarded based on cards left in opponents' hands:
