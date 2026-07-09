@@ -165,9 +165,10 @@ module Jedna
       return unless @card_stack.length <= n
 
       notify 'Reshuffling discard pile.'
+      top_discard = @played_cards.pop
       @played_cards.each(&:unset_wild_color)
       @card_stack << @played_cards
-      @played_cards = CardStack.new
+      @played_cards = CardStack.new([top_discard].compact)
       @card_stack.shuffle!
     end
 

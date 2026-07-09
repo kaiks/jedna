@@ -109,7 +109,33 @@ RSpec.describe Jedna::Game do
       expect(game.notifications.last).to include("already been dealt")
     end
   end
-  
+
+  describe '#check_for_empty_stack' do
+    let(:alice) { Jedna::Player.new('Alice') }
+    let(:bob) { Jedna::Player.new('Bob') }
+
+    before do
+      game.add_player(alice)
+      game.add_player(bob)
+      game.start_game
+    end
+
+    it 'keeps the top discard out of the draw stack' do
+      old_discard = Jedna::Card.new(:blue, 2)
+      top_discard = Jedna::Card.new(:red, 9)
+      game.instance_variable_set(:@top_card, top_discard)
+      game.instance_variable_set(:@card_stack, Jedna::CardStack.new)
+      game.instance_variable_set(:@played_cards, Jedna::CardStack.new([old_discard, top_discard]))
+
+      game.check_for_empty_stack(1)
+
+      expect(game.card_stack).to contain_exactly(old_discard)
+      expect(game.card_stack).not_to include(top_discard)
+      expect(game.instance_variable_get(:@played_cards)).to eq([top_discard])
+      expect(game.top_card).to equal(top_discard)
+    end
+  end
+
   describe '#player_card_play' do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }
