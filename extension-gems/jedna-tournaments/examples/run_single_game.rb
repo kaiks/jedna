@@ -139,7 +139,9 @@ class SingleGameRunner
     return handle_error(game) unless card
 
     configure_wild_color(card, action['wild_color'])
-    game.player_card_play(player, card, action['double_play'] == true)
+    played = game.player_card_play(player, card, action['double_play'] == true)
+    handle_error(game) unless played
+    played
   end
 
   def draw_and_maybe_play(game, player)
@@ -165,8 +167,10 @@ class SingleGameRunner
   end
 
   def handle_error(game)
+    return unless game.started?
+
     game.pick_single unless game.already_picked
-    game.turn_pass
+    game.turn_pass if game.started?
   end
 
   def find_card_in_hand(hand, card_string)

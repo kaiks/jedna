@@ -252,7 +252,7 @@ class ConfiguredTournamentRunner
       agent1.start
       agent2.start
 
-      game = Jedna::Game.new('tournament')
+      game = Jedna::Game.new('tournament', 1, Jedna::NullNotifier.new)
 
       player1 = Jedna::Player.new(Jedna::SimpleIdentity.new(first_agent_name))
       player2 = Jedna::Player.new(Jedna::SimpleIdentity.new(second_agent_name))
@@ -362,12 +362,15 @@ class ConfiguredTournamentRunner
           @current_game_log << "#{top_card};#{player_name};#{hand_cards};#{played_card}"
 
           card.set_wild_color(action['wild_color'].to_sym) if action['wild_color']
-          game.player_card_play(player, card, action['double_play'] == true)
+          played = game.player_card_play(player, card, action['double_play'] == true)
+          recover_turn(game) unless played
+        else
+          recover_turn(game)
         end
       when 'draw'
         @current_game_log << "#{top_card};#{player_name};#{hand_cards};draw"
         game.pick_single
-        if game.already_picked
+        if game.started? && game.already_picked
           new_state = @serializer.serialize_for_current_player(game)
           # Update hand for potential play after draw
           hand_cards = player.hand.map(&:to_s).sort.join(',')
@@ -382,7 +385,8 @@ class ConfiguredTournamentRunner
               @current_game_log << "#{top_card};#{player_name};#{hand_cards};#{played_card}"
 
               card.set_wild_color(follow_up['wild_color'].to_sym) if follow_up['wild_color']
-              game.player_card_play(player, card)
+              played = game.player_card_play(player, card)
+              game.turn_pass if game.started? && !played
             else
               @current_game_log << "#{top_card};#{player_name};#{hand_cards};pass"
               game.turn_pass
@@ -395,12 +399,20 @@ class ConfiguredTournamentRunner
       when 'pass'
         @current_game_log << "#{top_card};#{player_name};#{hand_cards};pass"
         game.turn_pass
+      else
+        recover_turn(game)
       end
     rescue StandardError
       @current_game_log << "#{top_card};#{player_name};#{hand_cards};error"
-      game.pick_single unless game.already_picked
-      game.turn_pass
+      recover_turn(game)
     end
+  end
+
+  def recover_turn(game)
+    return unless game.started?
+
+    game.pick_single unless game.already_picked
+    game.turn_pass if game.started?
   end
 
   def find_card(hand, card_string)

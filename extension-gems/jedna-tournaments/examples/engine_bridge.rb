@@ -73,13 +73,14 @@ class EngineBridge
       card = find_card_in_hand(player.hand, action['card'])
       if card
         card.set_wild_color(action['wild_color'].to_sym) if action['wild_color']
-        game.player_card_play(player, card, action['double_play'] == true)
+        played = game.player_card_play(player, card, action['double_play'] == true)
+        recover_turn(game) unless played
       else
-        game.turn_pass
+        recover_turn(game)
       end
     when 'draw'
       game.pick_single
-      if game.already_picked
+      if game.started? && game.already_picked
         # Ask again after draw if the drawn card is playable
         new_state = @serializer.serialize_for_current_player(game)
         safe_write(type: 'request_action', player: 'agent1', state: new_state[:state])
@@ -88,7 +89,8 @@ class EngineBridge
           card = find_card_in_hand(player.hand, follow['card'])
           if card
             card.set_wild_color(follow['wild_color'].to_sym) if follow['wild_color']
-            game.player_card_play(player, card)
+            played = game.player_card_play(player, card)
+            game.turn_pass if game.started? && !played
           else
             game.turn_pass
           end
@@ -111,20 +113,22 @@ class EngineBridge
       card = find_card_in_hand(player.hand, action['card'])
       if card
         card.set_wild_color(action['wild_color'].to_sym) if action['wild_color']
-        game.player_card_play(player, card, action['double_play'] == true)
+        played = game.player_card_play(player, card, action['double_play'] == true)
+        recover_turn(game) unless played
       else
-        game.turn_pass
+        recover_turn(game)
       end
     when 'draw'
       game.pick_single
-      if game.already_picked
+      if game.started? && game.already_picked
         new_state = @serializer.serialize_for_current_player(game)
         follow = agent.request_action(new_state[:state], timeout: TURN_TIMEOUT)
         if follow['action'] == 'play'
           card = find_card_in_hand(player.hand, follow['card'])
           if card
             card.set_wild_color(follow['wild_color'].to_sym) if follow['wild_color']
-            game.player_card_play(player, card)
+            played = game.player_card_play(player, card)
+            game.turn_pass if game.started? && !played
           else
             game.turn_pass
           end
@@ -138,8 +142,14 @@ class EngineBridge
       game.turn_pass
     end
   rescue StandardError
+    recover_turn(game)
+  end
+
+  def recover_turn(game)
+    return unless game.started?
+
     game.pick_single unless game.already_picked
-    game.turn_pass
+    game.turn_pass if game.started?
   end
 
   def find_card_in_hand(hand, card_string)

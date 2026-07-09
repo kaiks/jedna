@@ -31,7 +31,22 @@ RSpec.describe SingleGameRunner do
       game = instance_double(Jedna::Game)
       action = { 'action' => 'play', 'card' => 'r5', 'double_play' => true }
 
-      expect(game).to receive(:player_card_play).with(player, card, true)
+      expect(game).to receive(:player_card_play).with(player, card, true).and_return(true)
+
+      runner.send(:play_card, game, player, action)
+    end
+
+    it 'falls back to draw and pass when a play is rejected' do
+      runner = described_class.allocate
+      card = Jedna::Card.new(:red, 5)
+      player = Jedna::Player.new('Alice')
+      player.hand << card
+      game = instance_double(Jedna::Game, started?: true, already_picked: false)
+      action = { 'action' => 'play', 'card' => 'r5' }
+
+      expect(game).to receive(:player_card_play).with(player, card, false).and_return(false)
+      expect(game).to receive(:pick_single).ordered
+      expect(game).to receive(:turn_pass).ordered
 
       runner.send(:play_card, game, player, action)
     end
