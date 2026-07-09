@@ -129,7 +129,7 @@ class GameEngine
       execute_action(game, player, action, top_card, player_name, hand_cards)
     rescue StandardError
       @current_game_log << "#{top_card};#{player_name};#{hand_cards};error"
-      game.pick_single unless game.instance_variable_get(:@already_picked)
+      game.pick_single unless game.already_picked
       game.turn_pass
     end
   end
@@ -164,7 +164,7 @@ class GameEngine
     @current_game_log << "#{top_card};#{player_name};#{hand_cards};draw"
     game.pick_single
 
-    return unless game.instance_variable_get(:@already_picked)
+    return unless game.already_picked
 
     # Allow playing drawn card
     agent = yield if block_given?

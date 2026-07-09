@@ -79,7 +79,7 @@ class EngineBridge
       end
     when 'draw'
       game.pick_single
-      if game.instance_variable_get(:@already_picked)
+      if game.already_picked
         # Ask again after draw if the drawn card is playable
         new_state = @serializer.serialize_for_current_player(game)
         safe_write(type: 'request_action', player: 'agent1', state: new_state[:state])
@@ -117,7 +117,7 @@ class EngineBridge
       end
     when 'draw'
       game.pick_single
-      if game.instance_variable_get(:@already_picked)
+      if game.already_picked
         new_state = @serializer.serialize_for_current_player(game)
         follow = agent.request_action(new_state[:state], timeout: TURN_TIMEOUT)
         if follow['action'] == 'play'
@@ -138,7 +138,7 @@ class EngineBridge
       game.turn_pass
     end
   rescue StandardError
-    game.pick_single unless game.instance_variable_get(:@already_picked)
+    game.pick_single unless game.already_picked
     game.turn_pass
   end
 

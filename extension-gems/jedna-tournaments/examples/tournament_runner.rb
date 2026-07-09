@@ -367,7 +367,7 @@ class ConfiguredTournamentRunner
       when 'draw'
         @current_game_log << "#{top_card};#{player_name};#{hand_cards};draw"
         game.pick_single
-        if game.instance_variable_get(:@already_picked)
+        if game.already_picked
           new_state = @serializer.serialize_for_current_player(game)
           # Update hand for potential play after draw
           hand_cards = player.hand.map(&:to_s).sort.join(',')
@@ -398,7 +398,7 @@ class ConfiguredTournamentRunner
       end
     rescue StandardError
       @current_game_log << "#{top_card};#{player_name};#{hand_cards};error"
-      game.pick_single unless game.instance_variable_get(:@already_picked)
+      game.pick_single unless game.already_picked
       game.turn_pass
     end
   end

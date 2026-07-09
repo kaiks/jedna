@@ -11,7 +11,8 @@ require_relative '../interfaces/repository'
 
 module Jedna
   class Game
-    attr_reader :players, :top_card, :game_state, :creator, :card_stack, :starting_stack, :first_player
+    attr_reader :players, :top_card, :game_state, :creator, :card_stack, :starting_stack, :first_player,
+                :stacked_cards, :already_picked, :picked_card
     attr_accessor :notifier, :renderer, :repository
 
     def initialize(creator, casual = 0, notifier = nil, renderer = nil, repository = nil)
@@ -21,6 +22,7 @@ module Jedna
       @played_cards = nil
       @top_card = nil
       @picked_card = nil
+      @already_picked = false
       @locked = false #= can't join game
       @game_state = 0
       @start = nil

@@ -145,7 +145,7 @@ class SingleGameRunner
   def draw_and_maybe_play(game, player)
     game.pick_single
 
-    return unless game.instance_variable_get(:@already_picked)
+    return unless game.already_picked
 
     # Allow playing drawn card
     new_state = @serializer.serialize_for_current_player(game)
@@ -165,7 +165,7 @@ class SingleGameRunner
   end
 
   def handle_error(game)
-    game.pick_single unless game.instance_variable_get(:@already_picked)
+    game.pick_single unless game.already_picked
     game.turn_pass
   end
 
