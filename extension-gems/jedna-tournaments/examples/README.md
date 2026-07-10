@@ -97,7 +97,7 @@ encoding:
 - `rl_agent/policy.py`: random masked policy and MaskablePPO adapter.
 - `rl_agent/agent.py`: engine-message policy loop.
 - `rl_agent/rl_env.py`: Gymnasium environment backed by the Ruby engine.
-- `rl_agent/train_sb3.py`: training, checkpoints, and optional evaluation.
+- `rl_agent/train_sb3.py`: behavior cloning, optional DAgger aggregation, PPO training, checkpoints, and evaluation.
 - `rl_agent/eval_sb3.py`: deterministic or stochastic checkpoint evaluation.
 - `rl_agent/debug_one_game.py`: one-episode watchdog/debug runner.
 - `rl_agent/test_encoding.py`: dependency-free encoding and mask regression tests.
@@ -123,10 +123,13 @@ bundle exec ruby run_single_game.rb \
   './simple_agent.rb'
 ```
 
-Run the dependency-free PPO encoding tests:
+Run the Python agent tests:
 
 ```bash
-python3 -m unittest rl_agent.test_encoding
+python3 -m unittest \
+  rl_agent.test_encoding \
+  rl_agent.test_expert \
+  rl_agent.test_persistent_env
 ```
 
 The trainer keeps one Ruby engine and opponent process alive for each vectorized

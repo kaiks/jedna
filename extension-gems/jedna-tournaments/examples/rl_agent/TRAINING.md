@@ -76,6 +76,42 @@ Use fewer Crushing workers if its chain search saturates the machine. The
 training command is trusted local configuration: expert and opponent strings
 are executed as shell commands.
 
+### DAgger warm start
+
+Plain behavior cloning sees only states reached by the expert. DAgger also
+queries the expert on states reached by the learner, aggregates those labels,
+and retrains on the growing dataset. This targets compounding imitation errors;
+it cannot exceed the teacher through supervised learning alone, so PPO remains
+the fine-tuning stage. See the original [DAgger
+paper](https://proceedings.mlr.press/v15/ross11a.html).
+
+This command matches the 7,500 expert-query and 180 supervised-update budget
+used by the comparison below: 1,500 initial labels and six rounds of 1,000
+learner-distribution labels.
+
+```bash
+python3 -m rl_agent.train_sb3 \
+  --opponent './crushing_agent.rb' \
+  --expert './crushing_agent.rb' \
+  --expert-opponent './crushing_agent.rb' \
+  --expert-steps 1500 \
+  --bc-epochs 5 \
+  --dagger-rounds 6 \
+  --dagger-steps 1000 \
+  --dagger-beta-schedule 0.75,0.50,0.25,0.10,0,0 \
+  --dagger-updates 25 \
+  --timesteps 100000 \
+  --envs 4 \
+  --n-steps 256 \
+  --batch-size 256 \
+  --ppo-epochs 5 \
+  --model /tmp/jedna_dagger
+```
+
+Without an explicit beta schedule, `--dagger-beta-start` is linearly annealed
+to zero. Beta is the probability of executing the expert action while still
+recording the expert label at every visited state.
+
 ## Brief-run result from 2026-07-10
 
 The development run used 7,500 Crushing-vs-Crushing expert decisions, six
@@ -97,6 +133,49 @@ seeds, and checkpoint selection on held-out seeds are still required.
 
 The locally generated fine-tuned model is stored at
 `../../models/jedna_rl_v2_finetuned.zip`. Model archives are ignored by Git.
+
+## DAgger experiment from 2026-07-10
+
+A three-seed pilot promoted DAgger to a larger run. The larger comparison used
+the same 7,500 expert queries, 180 supervised optimizer updates, and 100,000 PPO
+steps per seed for both arms. On a 1,000-game validation range per seed, the
+aggregate results were:
+
+| Warm start | Mode | Wins | Win rate |
+| --- | --- | ---: | ---: |
+| Behavior cloning | deterministic | 1,471/3,000 | 49.03% |
+| DAgger | deterministic | 1,521/3,000 | 50.70% |
+| Behavior cloning | stochastic | 1,428/3,000 | 47.60% |
+| DAgger | stochastic | 1,474/3,000 | 49.13% |
+
+The best validation seed was then frozen and evaluated on a new 10,000-game
+range (`--seed 14000000`). It was slightly ahead of the existing PPO, but the
+gain did not clear a statistical promotion bar and neither policy beat
+Crushing:
+
+| Checkpoint | Mode | Wins | Win rate | 95% Wilson interval |
+| --- | --- | ---: | ---: | ---: |
+| Existing PPO | deterministic | 4,756/10,000 | 47.56% | 46.58–48.54% |
+| DAgger + PPO | deterministic | 4,821/10,000 | 48.21% | 47.23–49.19% |
+| Existing PPO | stochastic | 4,594/10,000 | 45.94% | 44.96–46.92% |
+| DAgger + PPO | stochastic | 4,639/10,000 | 46.39% | 45.41–47.37% |
+
+The DAgger checkpoint was therefore not promoted; the existing PPO remains in
+`../../models/`. The training option is retained because it improved the
+matched-budget three-seed aggregate and is useful for future controlled runs.
+
+Two smaller ablations were rejected before the long run. Four public-action
+history slots improved deterministic play by only 0.56 points over a same-shape
+zero-history control and reduced stochastic play by 1.67 points. Gamma-correct
+potential shaping improved deterministic play by 0.56 points but reduced
+stochastic play by 1.33 points. Their code is intentionally not retained.
+
+For larger algorithm changes, [NFSP](https://arxiv.org/abs/1603.01121) is a
+closer fit to the current online simulator than [Deep
+CFR](https://arxiv.org/abs/1811.00164), which needs explicit game-tree
+traversal and counterfactual reach values. A recent [imperfect-information RL
+benchmark](https://arxiv.org/abs/2502.08938) also supports keeping policy
+gradient baselines while evaluation and observation ablations are tightened.
 
 ## Evaluation
 

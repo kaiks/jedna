@@ -16,12 +16,41 @@ EXAMPLES_DIR = os.path.abspath(os.path.join(HERE, ".."))
 if EXAMPLES_DIR not in sys.path:
     sys.path.insert(0, EXAMPLES_DIR)
 
-from rl_agent.expert import collect_expert_dataset, pretrain_policy
+from rl_agent.expert import (
+    collect_dagger_dataset,
+    collect_expert_dataset,
+    merge_expert_datasets,
+    pretrain_policy,
+)
 from rl_agent.rl_env import JednaVsProcessEnv
 
 
 def mask_fn(env: JednaVsProcessEnv):
     return env.valid_action_mask()
+
+
+def build_dagger_beta_schedule(rounds, beta_start, raw_schedule=None):
+    if rounds < 0:
+        raise ValueError("--dagger-rounds cannot be negative")
+    if not 0.0 <= beta_start <= 1.0:
+        raise ValueError("--dagger-beta-start must be between 0 and 1")
+    if raw_schedule:
+        try:
+            schedule = [float(value) for value in raw_schedule.split(",")]
+        except ValueError as error:
+            raise ValueError("--dagger-beta-schedule must contain numbers") from error
+        if len(schedule) != rounds:
+            raise ValueError(
+                "--dagger-beta-schedule must contain one value per round"
+            )
+        if any(not 0.0 <= beta <= 1.0 for beta in schedule):
+            raise ValueError("DAgger beta values must be between 0 and 1")
+        return schedule
+    if rounds == 0:
+        return []
+    if rounds == 1:
+        return [beta_start]
+    return [beta_start * (1.0 - index / (rounds - 1)) for index in range(rounds)]
 
 
 def parse_args():
@@ -57,6 +86,15 @@ def parse_args():
     parser.add_argument("--expert-steps", type=int, default=0)
     parser.add_argument("--bc-epochs", type=int, default=5)
     parser.add_argument("--bc-batch-size", type=int, default=256)
+    parser.add_argument("--dagger-rounds", type=int, default=0)
+    parser.add_argument("--dagger-steps", type=int, default=500)
+    parser.add_argument("--dagger-beta-start", type=float, default=0.5)
+    parser.add_argument(
+        "--dagger-beta-schedule",
+        help="Comma-separated expert probabilities, one per DAgger round",
+    )
+    parser.add_argument("--dagger-epochs", type=int, default=1)
+    parser.add_argument("--dagger-updates", type=int, default=0)
     parser.add_argument("--checkpoint-dir")
     parser.add_argument("--checkpoint-every", type=int, default=50_000)
     parser.add_argument("--eval-freq", type=int, default=0)
@@ -186,6 +224,19 @@ def build_callbacks(engine_path, args):
 
 def main():
     args = parse_args()
+    try:
+        beta_schedule = build_dagger_beta_schedule(
+            args.dagger_rounds,
+            args.dagger_beta_start,
+            args.dagger_beta_schedule,
+        )
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
+    if args.dagger_rounds > 0 and args.expert_steps <= 0:
+        raise SystemExit("--expert-steps must be positive when DAgger is enabled")
+    if args.dagger_rounds > 0 and args.dagger_steps <= 0:
+        raise SystemExit("--dagger-steps must be positive when DAgger is enabled")
+
     engine_path = os.path.abspath(os.path.join(HERE, "..", "engine_bridge.rb"))
     factories = [
         env_factory(engine_path, args.opponent[index % len(args.opponent)], args)
@@ -224,6 +275,41 @@ def main():
                 batch_size=args.bc_batch_size,
                 seed=args.seed,
             )
+            datasets = [(observations, actions, masks)]
+            for round_index, beta in enumerate(beta_schedule):
+                dagger_env = JednaVsProcessEnv(
+                    engine_path,
+                    expert_opponent,
+                    max_seconds=args.timeout,
+                    reward_scale=args.reward_scale,
+                )
+                try:
+                    dataset = collect_dagger_dataset(
+                        dagger_env,
+                        args.expert,
+                        model,
+                        args.dagger_steps,
+                        args.seed + ((round_index + 1) * 100_000),
+                        beta,
+                    )
+                finally:
+                    dagger_env.close()
+                datasets.append(dataset)
+                observations, actions, masks = merge_expert_datasets(*datasets)
+                print(
+                    f"[DAgger] round={round_index + 1}/{args.dagger_rounds} "
+                    f"beta={beta:.3f} aggregate_steps={len(actions)}"
+                )
+                pretrain_policy(
+                    model,
+                    observations,
+                    actions,
+                    masks,
+                    epochs=args.dagger_epochs,
+                    batch_size=args.bc_batch_size,
+                    seed=args.seed + round_index + 1,
+                    updates=args.dagger_updates,
+                )
             model.save(f"{args.model}_bc")
 
         if args.timesteps > 0:
