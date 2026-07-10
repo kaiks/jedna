@@ -1,7 +1,7 @@
 from typing import Any, Dict
 
 from .io_stream import MessageStream
-from .encoding import ActionSpace, encode_action_mask, encode_observation
+from .encoding import ActionSpace, encode_action_mask, pack_observation_for_model
 
 
 class RLAgent:
@@ -23,7 +23,8 @@ class RLAgent:
             if msg_type == "request_action":
                 state: Dict[str, Any] = msg.get("state", {})
 
-                obs = encode_observation(state)
+                # Keep inference input consistent with training (array-shaped Dict).
+                obs = pack_observation_for_model(state)
                 mask = encode_action_mask(self.space, state)
                 act_idx = self.policy.select(obs, mask)
                 action = self.space.to_protocol(act_idx, state)
@@ -35,4 +36,3 @@ class RLAgent:
                 # Optionally: extract results from msg and log a terminal reward
                 self.history.close()
                 break
-

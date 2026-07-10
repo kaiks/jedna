@@ -10,7 +10,7 @@
 # - Verifying agent communication
 #
 # Usage: ./run_single_game.rb <agent1_command> <agent2_command>
-# Example: ./run_single_game.rb './simple_agent.rb' './smarter_agent.rb'
+# Example: ./run_single_game.rb './simple_agent.rb' './crushing_agent.rb'
 
 require 'bundler/setup'
 require 'jedna'
@@ -227,7 +227,7 @@ end
 if __FILE__ == $PROGRAM_NAME
   if ARGV.length < 2
     puts "Usage: #{$PROGRAM_NAME} <agent1_command> <agent2_command>"
-    puts "Example: #{$PROGRAM_NAME} './simple_agent.rb' 'python3 simple_agent.py'"
+    puts "Example: #{$PROGRAM_NAME} './simple_agent.rb' './crushing_agent.rb'"
     exit 1
   end
 

@@ -1,7 +1,6 @@
-#!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Smart Agent - Probability and chain-based Jedna player
+# Baseline probability and chain strategy used by CrushingAgent.
 #
 # Implements two strategies:
 # - Probability-based: Calculates transition probabilities between cards
@@ -15,33 +14,13 @@
 # - Limits permutations for large hands
 # - Uses greedy algorithm for very large hands
 #
-# Usage: ./smart_agent.rb (communicates via JSON on stdin/stdout)
-
-require 'json'
-
-# Probability and chain-based strategy agent
-class SmartAgent
+# This is deliberately support code rather than another executable arena agent.
+class CrushingBaselineStrategy
   PROBABILITY_THRESHOLD = 10
   MAX_PERMUTATION_SIZE = 8
   DISCOUNT_FACTOR = 0.99
 
-  def run
-    while (line = $stdin.gets)
-      data = JSON.parse(line)
-
-      case data['type']
-      when 'request_action'
-        puts JSON.generate(decide_action(data['state']))
-        $stdout.flush
-      when 'game_end'
-        break
-      end
-    end
-  end
-
-  private
-
-  def decide_action(state)
+  def decide(state)
     @state = state
     @hand = state['hand'] || []
     @playable_cards = state['playable_cards'] || []
@@ -55,12 +34,14 @@ class SmartAgent
     end
   end
 
+  private
+
   def use_probability_strategy?
     @hand.size >= PROBABILITY_THRESHOLD || in_war?
   end
 
   def in_war?
-    (@state['war_cards_to_draw'] || 0).positive?
+    (@state['stacked_cards'] || @state['war_cards_to_draw'] || 0).positive?
   end
 
   def probability_based_action
@@ -122,17 +103,25 @@ class SmartAgent
       neighbors = find_unvisited_neighbors(current, visited)
 
       if neighbors.empty?
-        longest = path.dup if path.size > longest.size
-        stack.pop
-        path.pop
+        longest = backtrack_chain(stack, path, longest)
       else
-        next_card = neighbors.first
-        stack.push(next_card)
-        path.push(next_card)
+        advance_chain(stack, path, neighbors.first)
       end
     end
 
     longest
+  end
+
+  def backtrack_chain(stack, path, longest)
+    longest = path.dup if path.size > longest.size
+    stack.pop
+    path.pop
+    longest
+  end
+
+  def advance_chain(stack, path, card)
+    stack.push(card)
+    path.push(card)
   end
 
   def find_unvisited_neighbors(card, visited)
@@ -212,25 +201,28 @@ class SmartAgent
   end
 
   def transition_probability(from_card, to_card, position)
-    from_color, from_figure = parse_card(from_card)
-    to_color, to_figure = parse_card(to_card)
+    from = parse_card(from_card)
+    to = parse_card(to_card)
+    special = special_transition(from_card, to_card, from, to, position)
+    return special if special
 
-    # Skip chain bonus
-    return 1.0 if from_figure == 's' && (to_color == from_color || to_figure == 's')
-
-    # Wild cards
-    return 1.0 if to_card == 'wd4'
-    return 0.95 if to_card == 'w'
-    return 0.85 if wild_card?(from_card) && position != 0
-
-    # Same card type
+    from_color, from_figure = from
+    to_color, to_figure = to
     return 0.85 if from_color == to_color && from_figure == to_figure
-
-    # Color or figure match
     return 0.6 if from_color == to_color
     return 0.2 if from_figure == to_figure
 
     0.05
+  end
+
+  def special_transition(from_card, to_card, from, to, position)
+    from_color, from_figure = from
+    to_color, to_figure = to
+    return 1.0 if from_figure == 's' && (to_color == from_color || to_figure == 's')
+    return 1.0 if to_card == 'wd4'
+    return 0.95 if to_card == 'w'
+
+    0.85 if wild_card?(from_card) && position != 0
   end
 
   def playable_on?(card, top_card)
@@ -249,7 +241,7 @@ class SmartAgent
   end
 
   def wild_card?(card)
-    card == 'w' || card == 'wd4'
+    %w[w wd4].include?(card)
   end
 
   def play_card(card, hand)
@@ -283,5 +275,3 @@ class SmartAgent
     end
   end
 end
-
-SmartAgent.new.run if __FILE__ == $PROGRAM_NAME

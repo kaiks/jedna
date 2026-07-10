@@ -1,6 +1,6 @@
 agents:
+  Simple: './simple_agent.rb'
   Crushing: './crushing_agent.rb'
-  Smart: './smart_agent.rb'
 
 tournament_type: round-robin
 games_per_round: 1000
@@ -10,4 +10,4 @@ timeouts:
   game_timeout: 15.0
 
 output:
-  stdout: false
+  stdout: true

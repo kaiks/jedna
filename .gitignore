@@ -7,6 +7,7 @@ MIGRATION_NOTES.md
 *.rbc
 __pycache__/
 *.pyc
+.venv/
 /.config
 /coverage/
 /InstalledFiles

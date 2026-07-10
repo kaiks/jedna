@@ -4,6 +4,9 @@ from typing import Dict, Any, List, Tuple
 COLORS = ["r", "g", "b", "y"]
 FIGURES = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "r", "s", "+2"]
 WILDS = ["w", "wd4"]
+TYPE_KEYS = ["numbers", "skips", "reverses", "draw2", "wild", "wd4"]
+COLOR_INDEX = {color: index for index, color in enumerate(COLORS)}
+FIGURE_INDEX = {figure: index for index, figure in enumerate(FIGURES)}
 
 
 def all_colored_cards() -> List[str]:
@@ -136,7 +139,11 @@ def encode_observation(state: Dict[str, Any]) -> Dict[str, Any]:
         "figure_counts": figure_counts,
         "top_color": top_color,
         "top_figure": top_figure,
-        "war_cards_to_draw": int(state.get("war_cards_to_draw", 0)),
+        # Keep the feature name for compatibility with existing PPO models,
+        # while reading the field emitted by GameStateSerializer.
+        "war_cards_to_draw": int(
+            state.get("stacked_cards", state.get("war_cards_to_draw", 0))
+        ),
         "opponent_counts": opp_sizes,
         "opponent_min": opp_min,
         "opponent_max": opp_max,
@@ -158,6 +165,31 @@ def encode_observation(state: Dict[str, Any]) -> Dict[str, Any]:
             "wild": p_wild,
             "wd4": p_wd4,
         },
+    }
+
+
+def pack_observation_for_model(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Pack protocol state into the fixed array-shaped Dict used by SB3."""
+    raw = encode_observation(state)
+    opponents = raw["opponent_counts"]
+
+    return {
+        "color_counts": [float(raw["color_counts"][color]) for color in COLORS],
+        "figure_counts": [float(raw["figure_counts"][figure]) for figure in FIGURES],
+        "top_color": [float(COLOR_INDEX.get(raw["top_color"], 0))],
+        "top_figure": [float(FIGURE_INDEX.get(raw["top_figure"], 0))],
+        "war_cards_to_draw": [float(raw["war_cards_to_draw"])],
+        "opponent_counts": [float(opponents[0] if opponents else 0)],
+        "opponent_min": [float(raw["opponent_min"])],
+        "opponent_max": [float(raw["opponent_max"])],
+        "hand_size": [float(raw["hand_size"])],
+        "playable_count": [float(raw["playable_count"])],
+        "hand_type_counts": [
+            float(raw["hand_type_counts"][key]) for key in TYPE_KEYS
+        ],
+        "playable_type_counts": [
+            float(raw["playable_type_counts"][key]) for key in TYPE_KEYS
+        ],
     }
 
 

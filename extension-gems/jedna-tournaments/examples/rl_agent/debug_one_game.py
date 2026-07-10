@@ -4,7 +4,7 @@ Run a single game with a watchdog timeout for debugging.
 
 Example:
   python3 extension-gems/jedna-tournaments/examples/rl_agent/debug_one_game.py \
-    --opponent "ruby extension-gems/jedna-tournaments/examples/smarter_agent.rb" \
+    --opponent "./crushing_agent.rb" \
     --timeout 60
 """
 import argparse
@@ -54,4 +54,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

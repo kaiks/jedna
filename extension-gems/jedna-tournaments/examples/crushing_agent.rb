@@ -1,15 +1,30 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative 'smarter_agent'
-require_relative 'smart_agent'
+require 'json'
+require_relative 'crushing_agent/baseline_strategy'
 
-# Extends the strongest hand-written baseline with a few focused tactics for
-# two-player games.
-class CrushingDecider < ActionDecider
+# Best known hand-written Jedna strategy for two-player games.
+class CrushingDecider
+  COLORS = {
+    'r' => 'red',
+    'g' => 'green',
+    'b' => 'blue',
+    'y' => 'yellow'
+  }.freeze
+
+  def initialize(state)
+    @state = state
+    @hand = state['hand'] || []
+    @playable_cards = state['playable_cards'] || []
+    @opponent_sizes = (state['other_players'] || []).filter_map do |player|
+      player['card_count'] || player[:card_count]
+    end
+  end
+
   def decide
-    return super unless @playable_cards.any?
-    return super if @state['already_picked']
+    return draw_or_pass unless @playable_cards.any?
+    return baseline_decision if @state['already_picked']
 
     skip = @playable_cards.find { |card| skip?(card) }
     return play(skip) if skip
@@ -20,7 +35,7 @@ class CrushingDecider < ActionDecider
     double_card = best_double_play
     return double_play(double_card) if double_card
 
-    SmartAgent.new.send(:decide_action, @state)
+    baseline_decision
   end
 
   private
@@ -53,6 +68,48 @@ class CrushingDecider < ActionDecider
 
   def double_play(card)
     play(card).merge('double_play' => true)
+  end
+
+  def baseline_decision
+    CrushingBaselineStrategy.new.decide(@state)
+  end
+
+  def draw_or_pass
+    action = @state['available_actions']&.include?('draw') ? 'draw' : 'pass'
+    { 'action' => action }
+  end
+
+  def play(card)
+    action = { 'action' => 'play', 'card' => card }
+    return action unless wild?(card)
+
+    color_counts = @hand.filter_map { |hand_card| COLORS[hand_card[0]] }.tally
+    action['wild_color'] = color_counts.max_by { |_, count| count }&.first || 'red'
+    action
+  end
+
+  def figure(card)
+    card[1..]
+  end
+
+  def number?(card)
+    card.match?(/\A[rbgy][0-9]\z/)
+  end
+
+  def reverse?(card)
+    card.end_with?('r')
+  end
+
+  def skip?(card)
+    card.end_with?('s')
+  end
+
+  def draw_two?(card)
+    card.end_with?('+2')
+  end
+
+  def wild?(card)
+    %w[w wd4].include?(card)
   end
 end
 

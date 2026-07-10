@@ -3,7 +3,7 @@
 Evaluate a trained MaskablePPO model vs a process opponent.
 
 Usage:
-  python3 eval_sb3.py --opponent "ruby .../smarter_agent.rb" --model /tmp/jedna_maskppo.zip --episodes 200
+  python3 eval_sb3.py --opponent "./crushing_agent.rb" --model /tmp/jedna_maskppo.zip --episodes 200
 """
 import argparse
 import os
@@ -46,21 +46,24 @@ def main():
 
     wins = 0
     total = 0
-    for _ in range(args.episodes):
-        obs, info = env.reset()
-        done = False
-        while not done:
-            mask = info.get("action_mask")
-            action, _ = model.predict(
-                obs,
-                action_masks=mask,
-                deterministic=not args.stochastic,
-            )
-            obs, reward, terminated, truncated, info = env.step(int(action))
-            done = terminated or truncated
-        total += 1
-        if reward > 0:
-            wins += 1
+    try:
+        for _ in range(args.episodes):
+            obs, info = env.reset()
+            done = False
+            while not done:
+                mask = info.get("action_mask")
+                action, _ = model.predict(
+                    obs,
+                    action_masks=mask,
+                    deterministic=not args.stochastic,
+                )
+                obs, reward, terminated, truncated, info = env.step(int(action))
+                done = terminated or truncated
+            total += 1
+            if reward > 0:
+                wins += 1
+    finally:
+        env.close()
     rate = 100.0 * wins / max(1, total)
     print(f"Episodes={total} Wins={wins} WinRate={rate:.2f}%")
 

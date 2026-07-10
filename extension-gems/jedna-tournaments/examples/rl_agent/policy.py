@@ -38,9 +38,9 @@ class SB3PolicyAdapter:
         self.model = self.Model.load(model_path)
 
     def select(self, obs: Dict[str, Any], mask: List[int]) -> int:  # pragma: no cover
-        # SB3 typically expects vectorized obs; adapt if needed in your wrapper
         action, _ = self.model.predict(obs, action_masks=mask, deterministic=False)
+        if hasattr(action, "item"):
+            return int(action.item())
         if isinstance(action, (list, tuple)):
             return int(action[0])
         return int(action)
-

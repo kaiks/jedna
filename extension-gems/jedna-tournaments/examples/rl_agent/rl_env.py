@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, Tuple
 import gymnasium as gym
 from gymnasium import spaces
 
-from .encoding import ActionSpace, encode_action_mask, encode_observation
+from .encoding import ActionSpace, encode_action_mask, pack_observation_for_model
 
 
 class JednaVsProcessEnv(gym.Env):
@@ -33,7 +33,7 @@ class JednaVsProcessEnv(gym.Env):
         self.space = ActionSpace()
 
         # Build observation space matching encode_observation keys
-        # color_counts (4), figure_counts (12), top_color (categorical), top_figure (categorical), war_cards_to_draw (int), opponent_counts (1)
+        # Fixed-shape arrays packed by pack_observation_for_model.
         self.observation_space = spaces.Dict(
             {
                 "color_counts": spaces.Box(low=0, high=50, shape=(4,), dtype=float),
@@ -128,6 +128,11 @@ class JednaVsProcessEnv(gym.Env):
     def valid_action_mask(self):
         return encode_action_mask(self.space, self._last_state or {})
 
+    def close(self):
+        self._stop_watchdog()
+        self._terminate_proc()
+        super().close()
+
     # Helpers
     def _wait_for_request(self):
         while True:
@@ -176,55 +181,10 @@ class JednaVsProcessEnv(gym.Env):
         self.proc.stdin.flush()
 
     def _obs_from_state(self, state: Optional[Dict[str, Any]]):
-        state = state or {}
-        obs_raw = encode_observation(state)
-        # Pack categorical to scalars to keep space simple
-        color_idx = {"r": 0, "g": 1, "b": 2, "y": 3}
-        figure_idx = {"0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "r": 10, "s": 11, "+2": 12}
-        top_color = float(color_idx.get(obs_raw["top_color"], 0))
-        top_figure = float(figure_idx.get(obs_raw["top_figure"], 0))
-
-        # Convert dicts to arrays in fixed order
-        color_counts = [float(obs_raw["color_counts"][c]) for c in ["r", "g", "b", "y"]]
-        figure_counts = [
-            float(obs_raw["figure_counts"][f])
-            for f in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "r", "s", "+2"]
-        ]
-        opp = float(obs_raw["opponent_counts"][0] if obs_raw["opponent_counts"] else 0.0)
-        return {
-            "color_counts": color_counts,
-            "figure_counts": figure_counts,
-            "top_color": [top_color],
-            "top_figure": [top_figure],
-            "war_cards_to_draw": [float(obs_raw["war_cards_to_draw"])],
-            "opponent_counts": [opp],
-            "opponent_min": [float(obs_raw["opponent_min"])],
-            "opponent_max": [float(obs_raw["opponent_max"])],
-            "hand_size": [float(obs_raw["hand_size"])],
-            "playable_count": [float(obs_raw["playable_count"])],
-            "hand_type_counts": [
-                float(obs_raw["hand_type_counts"][k]) for k in ["numbers", "skips", "reverses", "draw2", "wild", "wd4"]
-            ],
-            "playable_type_counts": [
-                float(obs_raw["playable_type_counts"][k]) for k in ["numbers", "skips", "reverses", "draw2", "wild", "wd4"]
-            ],
-        }
+        return pack_observation_for_model(state or {})
 
     def _zero_obs(self):
-        return {
-            "color_counts": [0.0, 0.0, 0.0, 0.0],
-            "figure_counts": [0.0] * 13,
-            "top_color": [0.0],
-            "top_figure": [0.0],
-            "war_cards_to_draw": [0.0],
-            "opponent_counts": [0.0],
-            "opponent_min": [0.0],
-            "opponent_max": [0.0],
-            "hand_size": [0.0],
-            "playable_count": [0.0],
-            "hand_type_counts": [0.0] * 6,
-            "playable_type_counts": [0.0] * 6,
-        }
+        return pack_observation_for_model({})
 
     def _terminate_proc(self):
         if not self.proc:

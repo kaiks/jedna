@@ -2,15 +2,13 @@
 # frozen_string_literal: true
 
 require 'jedna'
-require_relative 'smart_agent'
-require_relative 'smarter_agent'
+require_relative 'simple_agent'
 require_relative 'crushing_agent'
 
 # Fast, deterministic head-to-head harness for the bundled Ruby agents.
 class InProcessAgentBenchmark
   POLICIES = {
-    'smart' => ->(state) { SmartAgent.new.send(:decide_action, state) },
-    'smarter' => ->(state) { ActionDecider.new(state).decide },
+    'simple' => ->(state) { SimpleAgent.new.send(:decide_action, state) },
     'crushing' => ->(state) { CrushingDecider.new(state).decide }
   }.freeze
 

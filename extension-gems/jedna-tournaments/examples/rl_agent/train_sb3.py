@@ -6,7 +6,7 @@ Requirements:
   pip install stable-baselines3 sb3-contrib gymnasium torch
 
 Usage:
-  python3 train_sb3.py --opponent "ruby extension-gems/jedna-tournaments/examples/smarter_agent.rb" \
+  python3 train_sb3.py --opponent "./crushing_agent.rb" \
                        --timesteps 10000 --model /tmp/jedna_maskppo
 """
 import argparse
@@ -113,7 +113,7 @@ def main():
                         print(f"[Eval] New best model saved to {path}")
                     except Exception as e:
                         print(f"[Eval] Failed to save best model: {e}")
-                del env
+                env.close()
             return True
 
     if args.eval_freq and args.eval_freq > 0:
@@ -131,6 +131,7 @@ def main():
     cb = CallbackList(callbacks) if callbacks else None
     model.learn(total_timesteps=args.timesteps, callback=cb)
     model.save(args.model)
+    env.close()
     print(f"Saved model to {args.model}")
 
 

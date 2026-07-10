@@ -10,9 +10,9 @@ The library currently provides:
 - A `BaseAgent` interface
 - A configurable per-response timeout
 
-Round-robin, elimination, result reporting, and parallel execution currently
-live in the `examples/` scripts. They are not public classes in
-`JednaTournaments`.
+The maintained round-robin arena and PPO training workflow live under
+`examples/`. They are example tools rather than public `JednaTournaments`
+classes.
 
 ## Installation
 
@@ -63,7 +63,7 @@ agent.stop
 
 ```bash
 cd extension-gems/jedna-tournaments/examples
-bundle exec ruby tournament_runner.rb tournament_config.yaml
+bundle exec ruby tournament_runner.rb arena.yaml
 ```
 
 ### Creating Custom Agents
@@ -105,16 +105,18 @@ end
 MyAgent.new.run if __FILE__ == $0
 ```
 
-## Example Tournament Formats
+## Example Tournament Format
 
 ### Round Robin
-The example runner supports round-robin and single-elimination brackets. Set
-`tournament_type` in the YAML configuration to `round-robin` or
-`elimination-bracket`.
+
+The maintained example runner plays every pair of configured agents and
+alternates who starts:
 
 ```yaml
-tournament_type: round-robin
-games_per_round: 20
+agents:
+  Simple: './simple_agent.rb'
+  Crushing: './crushing_agent.rb'
+games_per_round: 1000
 ```
 
 ## Configuration
@@ -125,9 +127,7 @@ JednaTournaments.configure do |config|
 end
 ```
 
-The configuration object also exposes `log_games`, `log_dir`, `parallel`, and
-`max_threads`, but the library classes do not consume those settings. The
-example runners use their own YAML configuration.
+The arena runner uses its own YAML configuration.
 
 ## Development
 
@@ -150,15 +150,15 @@ bundle exec rspec
 
 ## Examples
 
-See the `examples/` directory for sample agents in various languages:
-- `simple_agent.rb` - Basic Ruby agent
-- `simple_agent.py` - Basic Python agent
-- `smart_agent.rb` - More sophisticated Ruby agent
-- `crushing_agent.rb` - Smart-derived agent with tested two-player tactics
-- `benchmark_agents.rb` - Fast seeded benchmark for bundled Ruby agents
-- `crushing_agent_results.md` - Reproducible benchmark results and commands
-- `run_single_game.rb` - Run and debug one game
-- `tournament_runner.rb` - YAML-configured example tournament
+The [agent arena](examples/README.md) contains the maintained examples and
+training workflow:
+
+- `simple_agent.rb` - Minimal protocol reference and baseline
+- `crushing_agent.rb` - Best maintained hand-written strategy
+- `rl_agent.py` and `rl_agent/` - PPO inference and training scaffold
+- `run_single_game.rb` - Verbose process-level game debugger
+- `tournament_runner.rb` and `arena.yaml` - Configured tournament runner
+- `benchmark_agents.rb` - Fast seeded comparison of the Ruby agents
 
 `ProcessAgent` executes the supplied command. Treat command strings as trusted
 configuration; do not pass untrusted user input into them.
