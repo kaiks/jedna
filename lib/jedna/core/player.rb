@@ -1,10 +1,12 @@
+# frozen_string_literal: true
+
 require_relative '../interfaces/player_identity'
 
 module Jedna
   class Player
     attr_accessor :hand
     attr_reader :identity
-    
+
     def initialize(identity_or_nick)
       @joined = Time.now
       # Support both old string-based and new identity-based creation
@@ -19,16 +21,17 @@ module Jedna
       require_relative 'hand'
       @hand = Hand.new
     end
-  
+
     def to_s
       @identity.to_s
     end
-  
-    def ==(player)
-      return false unless player.is_a?(Player)
-      @identity.matches?(player.identity)
+
+    def ==(other)
+      return false unless other.is_a?(Player)
+
+      @identity.matches?(other.identity)
     end
-    
+
     # Check if this player matches a given identity or string
     def matches?(identity_or_string)
       @identity.matches?(identity_or_string)

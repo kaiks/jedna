@@ -10,8 +10,11 @@ require 'json'
 require 'jedna'
 require_relative '../lib/jedna_tournaments'
 
+srand(Integer(ENV['JEDNA_SEED'])) if ENV['JEDNA_SEED']
+
+# Runs the game engine for a Python-controlled player and process opponent.
 class EngineBridge
-  TURN_TIMEOUT = 2.0
+  TURN_TIMEOUT = 10.0
 
   def initialize(opponent_cmd)
     @opponent_cmd = opponent_cmd
@@ -38,7 +41,8 @@ class EngineBridge
       winner_player = game.players.min_by { |pl| pl.hand.value }
       winner_id = winner_player.identity.id
       game.players.each { |pl| scores[pl.identity.id] = pl.hand.value }
-      safe_write(type: 'game_end', winner: winner_id, scores: scores)
+      card_counts = game.players.to_h { |player| [player.identity.id, player.hand.size] }
+      safe_write(type: 'game_end', winner: winner_id, scores: scores, card_counts: card_counts)
     end
 
     game.start_game
@@ -154,6 +158,7 @@ class EngineBridge
 
   def find_card_in_hand(hand, card_string)
     return nil unless card_string
+
     if %w[w wd4].include?(card_string)
       hand.find do |c|
         (c.figure == 'wild' && card_string == 'w') ||
@@ -165,22 +170,23 @@ class EngineBridge
   end
 
   def safe_write(obj)
-    STDOUT.write(JSON.generate(obj) + "\n")
-    STDOUT.flush
+    $stdout.write("#{JSON.generate(obj)}\n")
+    $stdout.flush
   rescue StandardError
     nil
   end
 
   def safe_read
-    line = STDIN.gets
+    line = $stdin.gets
     return nil unless line
+
     JSON.parse(line)
   rescue StandardError
     nil
   end
 end
 
-opponent_cmd = ENV['OPPONENT_CMD']
+opponent_cmd = ENV.fetch('OPPONENT_CMD', nil)
 if opponent_cmd.nil? || opponent_cmd.empty?
   warn 'OPPONENT_CMD not set'
   exit 1

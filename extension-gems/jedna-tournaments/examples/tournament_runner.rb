@@ -162,7 +162,7 @@ class ConfiguredTournamentRunner
     config = YAML.safe_load_file(config_file)
     @agents = config.fetch('agents')
     @games_per_round = Integer(config.fetch('games_per_round', 10))
-    @turn_timeout = timeout_value(config.dig('timeouts', 'turn_timeout'), 2.0)
+    @turn_timeout = timeout_value(config.dig('timeouts', 'turn_timeout'), 10.0)
     @game_timeout = timeout_value(config.dig('timeouts', 'game_timeout'), 15.0)
     @stdout = config.dig('output', 'stdout') != false
     @results = @agents.to_h { |name, _command| [name, 0] }

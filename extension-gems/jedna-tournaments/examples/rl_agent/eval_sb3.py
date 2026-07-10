@@ -6,6 +6,7 @@ Usage:
   python3 eval_sb3.py --opponent "./crushing_agent.rb" --model /tmp/jedna_maskppo.zip --episodes 200
 """
 import argparse
+import math
 import os
 import sys
 
@@ -25,12 +26,27 @@ def mask_fn(env: JednaVsProcessEnv):
     return env.valid_action_mask()
 
 
+def wilson_interval(wins, total, z=1.96):
+    proportion = wins / total
+    denominator = 1 + z * z / total
+    center = (proportion + z * z / (2 * total)) / denominator
+    half_width = (
+        z
+        * math.sqrt(
+            proportion * (1 - proportion) / total + z * z / (4 * total * total)
+        )
+        / denominator
+    )
+    return center - half_width, center + half_width
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--opponent", required=True)
     parser.add_argument("--model", required=True)
     parser.add_argument("--episodes", type=int, default=200)
     parser.add_argument("--timeout", type=float, default=60.0)
+    parser.add_argument("--seed", type=int, default=1_000_000)
     parser.add_argument(
         "--stochastic",
         action="store_true",
@@ -47,8 +63,8 @@ def main():
     wins = 0
     total = 0
     try:
-        for _ in range(args.episodes):
-            obs, info = env.reset()
+        for episode in range(args.episodes):
+            obs, info = env.reset(seed=args.seed + episode)
             done = False
             while not done:
                 mask = info.get("action_mask")
@@ -60,12 +76,16 @@ def main():
                 obs, reward, terminated, truncated, info = env.step(int(action))
                 done = terminated or truncated
             total += 1
-            if reward > 0:
+            if info.get("winner") == "agent1":
                 wins += 1
     finally:
         env.close()
     rate = 100.0 * wins / max(1, total)
-    print(f"Episodes={total} Wins={wins} WinRate={rate:.2f}%")
+    low, high = wilson_interval(wins, total)
+    print(
+        f"Episodes={total} Wins={wins} WinRate={rate:.2f}% "
+        f"Wilson95={low:.2%}-{high:.2%}"
+    )
 
 
 if __name__ == "__main__":

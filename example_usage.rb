@@ -30,19 +30,19 @@ game.start_game
 # class MyGameModel < Sequel::Model(:games)
 #   # Your game model implementation
 # end
-# 
+#
 # class MyTurnModel < Sequel::Model(:turn)
 #   # Your turn model implementation
 # end
-# 
+#
 # class MyActionModel < Sequel::Model(:player_action)
 #   # Your action model implementation
 # end
-# 
+#
 # class MyRankModel < Sequel::Model(:uno)
 #   # Your rank model implementation
 # end
-# 
+#
 # # Create repository with injected models
 # repository = Jedna::SqliteRepository.new(
 #   game_model: MyGameModel,
@@ -50,7 +50,7 @@ game.start_game
 #   action_model: MyActionModel,
 #   rank_model: MyRankModel
 # )
-# 
+#
 # # Create game with database support
 # db_game = Jedna::Game.new(
 #   'Player1',

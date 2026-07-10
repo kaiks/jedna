@@ -6,7 +6,8 @@ tournament_type: round-robin
 games_per_round: 1000
 
 timeouts:
-  turn_timeout: 2.0
+  # Allows Torch/SB3 to load a PPO checkpoint before its first action.
+  turn_timeout: 10.0
   game_timeout: 15.0
 
 output:

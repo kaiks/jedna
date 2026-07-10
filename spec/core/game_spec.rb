@@ -1,20 +1,22 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 RSpec.describe Jedna::Game do
   let(:game) { TestJednaGame.new('TestCreator', 1) } # casual mode to avoid DB
-  
+
   describe '#initialize' do
     it 'creates a game with initial state' do
       expect(game.game_state).to eq(0)
       expect(game.players).to be_empty
       expect(game.creator).to eq('TestCreator')
     end
-    
+
     it 'initializes with empty players array' do
       expect(game.players).to be_a(Array)
       expect(game.players).to be_empty
     end
-    
+
     it 'creates a full deck' do
       # Check internal full_deck
       full_deck = game.instance_variable_get(:@full_deck)
@@ -40,37 +42,37 @@ RSpec.describe Jedna::Game do
       expect(repository).not_to have_received(:save_card_action)
     end
   end
-  
+
   describe '#add_player' do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }
-    
+
     it 'adds player to the game' do
       game.add_player(alice)
       expect(game.players).to include(alice)
     end
-    
+
     it 'shuffles players after adding' do
       # Add many players to test shuffling
       players = 10.times.map { |i| Jedna::Player.new("Player#{i}") }
       players.each { |p| game.add_player(p) }
-      
+
       # Order should be randomized (very small chance of being in exact order)
       original_names = players.map { |p| p.identity.display_name }
       game_names = game.players.map { |p| p.identity.display_name }
       expect(game_names).to match_array(original_names)
     end
-    
+
     it 'notifies when player joins' do
       game.add_player(alice)
-      expect(game.notifications).to include("Alice joins the game")
+      expect(game.notifications).to include('Alice joins the game')
     end
-    
+
     it 'prevents joining after game is locked' do
       game.instance_variable_set(:@locked, true)
       game.add_player(alice)
       expect(game.players).to be_empty
-      expect(game.notifications.last).to include("not possible to join")
+      expect(game.notifications.last).to include('not possible to join')
     end
   end
 
@@ -91,38 +93,38 @@ RSpec.describe Jedna::Game do
   describe '#start_game' do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }
-    
+
     before do
       game.add_player(alice)
       game.add_player(bob)
     end
-    
+
     it 'requires at least 2 players' do
       single_game = TestJednaGame.new('Creator', 1)
       single_game.add_player(alice)
       single_game.start_game
       expect(single_game.game_state).to eq(0)
-      expect(single_game.notifications.last).to include("at least two players")
+      expect(single_game.notifications.last).to include('at least two players')
     end
-    
+
     it 'sets game state to 1' do
       game.start_game
       expect(game.game_state).to eq(1)
     end
-    
+
     it 'deals 7 cards to each player' do
       game.start_game
       game.players.each do |player|
         expect(player.hand.size).to eq(7)
       end
     end
-    
+
     it 'sets a top card' do
       game.start_game
       expect(game.top_card).not_to be_nil
       expect(game.top_card).to be_a(Jedna::Card)
     end
-    
+
     it 'ensures first card is not offensive' do
       # The deck should be shuffled until first card is not +2 or wd4
       100.times do
@@ -133,12 +135,12 @@ RSpec.describe Jedna::Game do
         expect(new_game.top_card.is_offensive?).to be false
       end
     end
-    
+
     it 'prevents starting twice' do
       game.start_game
-      initial_notifications = game.notifications.size
+      game.notifications.size
       game.start_game
-      expect(game.notifications.last).to include("already been dealt")
+      expect(game.notifications.last).to include('already been dealt')
     end
 
     it 'starts with the requested player and records their identity' do
@@ -209,7 +211,7 @@ RSpec.describe Jedna::Game do
   describe '#player_card_play' do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }
-    
+
     before do
       game.add_player(alice)
       game.add_player(bob)
@@ -218,36 +220,36 @@ RSpec.describe Jedna::Game do
       @top_card = Jedna::Card.new(:red, 5)
       game.instance_variable_set(:@top_card, @top_card)
     end
-    
+
     context 'valid plays' do
       before do
         # Ensure alice is the current player (at index 0)
         game.instance_variable_set(:@players, [alice, bob])
       end
-      
+
       it 'allows playing matching color' do
         card = Jedna::Card.new(:red, 9)
         alice.hand = Jedna::Hand.new
         alice.hand << card
-        alice.hand << Jedna::Card.new(:blue, 5)  # Extra card so game doesn't end
+        alice.hand << Jedna::Card.new(:blue, 5) # Extra card so game doesn't end
         expect(game.player_card_play(alice, card)).to be true
         expect(alice.hand).not_to include(card)
         expect(game.top_card).to eq(card)
       end
-      
+
       it 'allows playing matching number' do
         card = Jedna::Card.new(:blue, 5)
         alice.hand = Jedna::Hand.new
         alice.hand << card
-        alice.hand << Jedna::Card.new(:green, 3)  # Extra card so game doesn't end
+        alice.hand << Jedna::Card.new(:green, 3) # Extra card so game doesn't end
         expect(game.player_card_play(alice, card)).to be true
       end
-      
+
       it 'allows playing wild card' do
         card = Jedna::Card.new(:wild, 'wild')
         alice.hand = Jedna::Hand.new
         alice.hand << card
-        alice.hand << Jedna::Card.new(:blue, 5)  # Extra card so game doesn't end
+        alice.hand << Jedna::Card.new(:blue, 5) # Extra card so game doesn't end
         # Set wild color before playing
         card.set_wild_color(:red)
         expect(game.player_card_play(alice, card)).to be true
@@ -266,7 +268,7 @@ RSpec.describe Jedna::Game do
         expect(game.top_card).to equal(top_card)
         expect(game.notifications.last).to include('Choose a color')
       end
-      
+
       it 'removes card from player hand' do
         card = Jedna::Card.new(:red, 7)
         alice.hand = Jedna::Hand.new
@@ -276,7 +278,7 @@ RSpec.describe Jedna::Game do
         expect(alice.hand).not_to include(card)
         expect(alice.hand.size).to eq(1)
       end
-      
+
       it 'updates top card' do
         card = Jedna::Card.new(:red, 7)
         alice.hand = Jedna::Hand.new
@@ -286,44 +288,44 @@ RSpec.describe Jedna::Game do
         expect(game.top_card).to eq(card)
       end
     end
-    
+
     context 'invalid plays' do
       it 'rejects non-matching card' do
         # Ensure alice is the current player
         game.instance_variable_set(:@players, [alice, bob])
-        
+
         card = Jedna::Card.new(:blue, 9)
         alice.hand << card
         expect(game.player_card_play(alice, card)).to be false
         expect(alice.hand).to include(card)
         expect(game.notifications.last).to include("doesn't play")
       end
-      
+
       it 'rejects play when not player turn' do
         # Ensure alice is the current player, not bob
         game.instance_variable_set(:@players, [alice, bob])
-        
+
         card = Jedna::Card.new(:red, 9)
         bob.hand << card
         expect(game.player_card_play(bob, card)).to be false
-        expect(game.notifications.last).to include("not your turn")
+        expect(game.notifications.last).to include('not your turn')
       end
-      
+
       it 'rejects nil card' do
         # Ensure alice is the current player
         game.instance_variable_set(:@players, [alice, bob])
-        
+
         expect(game.player_card_play(alice, nil)).to be false
-        expect(game.notifications.last).to include("do not have that card")
+        expect(game.notifications.last).to include('do not have that card')
       end
     end
   end
-  
+
   describe 'special cards' do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }
     let(:charlie) { Jedna::Player.new('Charlie') }
-    
+
     before do
       game.add_player(alice)
       game.add_player(bob)
@@ -332,78 +334,78 @@ RSpec.describe Jedna::Game do
       # Set a known player order with alice first
       game.instance_variable_set(:@players, [alice, bob, charlie])
     end
-    
+
     describe 'skip card' do
       it 'skips next player' do
         skip_card = Jedna::Card.new(:red, 'skip')
         alice.hand = Jedna::Hand.new
         alice.hand << skip_card
-        alice.hand << Jedna::Card.new(:blue, 5)  # Extra cards so game continues
+        alice.hand << Jedna::Card.new(:blue, 5) # Extra cards so game continues
         alice.hand << Jedna::Card.new(:green, 3)
-        
+
         # Set a matching top card
         game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
-        
+
         # Alice plays skip
         game.player_card_play(alice, skip_card)
-        
+
         # Bob should be skipped, Charlie's turn
         expect(game.players[0].identity.display_name).to eq('Charlie')
-        expect(game.notifications).to include("Bob was skipped!")
+        expect(game.notifications).to include('Bob was skipped!')
       end
     end
-    
+
     describe 'reverse card' do
       it 'reverses play order' do
         reverse_card = Jedna::Card.new(:red, 'reverse')
         alice.hand = Jedna::Hand.new
         alice.hand << reverse_card
-        alice.hand << Jedna::Card.new(:blue, 5)  # Extra cards so game continues
+        alice.hand << Jedna::Card.new(:blue, 5) # Extra cards so game continues
         alice.hand << Jedna::Card.new(:green, 3)
-        
+
         # Set a matching top card
         game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
-        
-        initial_order = game.players.map { |p| p.identity.display_name }
+
+        game.players.map { |p| p.identity.display_name }
         game.player_card_play(alice, reverse_card)
-        
-        expect(game.notifications).to include("Player order reversed!")
+
+        expect(game.notifications).to include('Player order reversed!')
         # After reverse and rotate, last player should be next
         expect(game.players[0]).not_to eq(alice)
       end
     end
-    
+
     describe '+2 card' do
       it 'starts draw two war' do
         draw2 = Jedna::Card.new(:red, '+2')
         alice.hand << draw2
         # Set a matching top card
         game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
-        
+
         game.player_card_play(alice, draw2)
         expect(game.game_state).to eq(2)
         expect(game.notifications).to include(match(/draw 2 more cards \(total 2\)/))
       end
     end
-    
+
     describe 'wild draw 4' do
       it 'starts wild draw four war' do
         wd4 = Jedna::Card.new(:wild, 'wild+4')
         alice.hand << wd4
         # Set color for wild card
         wd4.set_wild_color(:red)
-        
+
         game.player_card_play(alice, wd4)
         expect(game.game_state).to eq(3)
         expect(game.notifications).to include(match(/draw 4 more cards \(total 4\)/))
       end
     end
   end
-  
+
   describe 'war states' do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }
-    
+
     before do
       game.add_player(alice)
       game.add_player(bob)
@@ -411,7 +413,7 @@ RSpec.describe Jedna::Game do
       # Set known player order
       game.instance_variable_set(:@players, [alice, bob])
     end
-    
+
     describe '+2 war' do
       before do
         # Start +2 war
@@ -422,69 +424,69 @@ RSpec.describe Jedna::Game do
         # Now it's bob's turn
         expect(game.players[0]).to eq(bob)
       end
-      
+
       it 'allows playing another +2' do
         another_draw2 = Jedna::Card.new(:blue, '+2')
         bob.hand << another_draw2
-        
+
         expect(game.player_card_play(bob, another_draw2)).to be true
         expect(game.notifications).to include(match(/total 4/))
       end
-      
+
       it 'allows playing reverse during war' do
         reverse = Jedna::Card.new(:red, 'reverse')
         bob.hand << reverse
-        
+
         expect(game.player_card_play(bob, reverse)).to be true
       end
-      
+
       it 'allows playing wd4 during +2 war' do
         wd4 = Jedna::Card.new(:wild, 'wild+4')
         wd4.set_wild_color(:red) # Must set color before playing
         bob.hand << wd4
-        
+
         expect(game.player_card_play(bob, wd4)).to be true
         expect(game.game_state).to eq(3) # Escalates to wd4 war
       end
-      
+
       it 'rejects regular cards during war' do
         regular = Jedna::Card.new(:red, 5)
         bob.hand << regular
-        
+
         expect(game.player_card_play(bob, regular)).to be false
       end
     end
   end
-  
+
   describe '#pick_single' do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }
-    
+
     before do
       game.add_player(alice)
       game.add_player(bob)
       game.start_game
     end
-    
+
     it 'allows picking one card' do
       current_player = game.players[0]
       initial_size = current_player.hand.size
       game.pick_single
       expect(current_player.hand.size).to eq(initial_size + 1)
-      expect(game.notifications.last).to include("draws a card")
+      expect(game.notifications.last).to include('draws a card')
     end
-    
+
     it 'prevents picking twice' do
       game.pick_single
       game.pick_single
       expect(game.notifications.last).to include("can't pick now")
     end
-    
+
     it 'forces draw in war state' do
       # Start +2 war
       game.instance_variable_set(:@game_state, 2)
       game.instance_variable_set(:@stacked_cards, 2)
-      
+
       game.pick_single
       expect(game.notifications.last).to include("can't pick now")
     end
@@ -508,22 +510,22 @@ RSpec.describe Jedna::Game do
       expect(game.players[0]).to eq(current_player)
     end
   end
-  
+
   describe '#turn_pass' do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }
-    
+
     before do
       game.add_player(alice)
       game.add_player(bob)
       game.start_game
     end
-    
+
     it 'requires picking first in normal state' do
       game.turn_pass
-      expect(game.notifications.last).to include("pick a card first")
+      expect(game.notifications.last).to include('pick a card first')
     end
-    
+
     it 'allows pass after picking' do
       game.pick_single
       initial_player = game.players[0]
@@ -531,11 +533,11 @@ RSpec.describe Jedna::Game do
       expect(game.players[0]).not_to eq(initial_player)
       expect(game.instance_variable_get(:@picked_card)).to be_nil
     end
-    
+
     it 'forces drawing stacked cards in war state' do
       game.instance_variable_set(:@game_state, 2)
       game.instance_variable_set(:@stacked_cards, 4)
-      
+
       current_player = game.players[0]
       initial_size = current_player.hand.size
       game.turn_pass
@@ -543,11 +545,11 @@ RSpec.describe Jedna::Game do
       expect(game.game_state).to eq(1) # Back to normal
     end
   end
-  
+
   describe 'winning conditions' do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }
-    
+
     before do
       game.add_player(alice)
       game.add_player(bob)
@@ -556,67 +558,67 @@ RSpec.describe Jedna::Game do
       alice.hand = Jedna::Hand.new
       bob.hand = Jedna::Hand.new
     end
-    
+
     it 'detects winner when player has no cards' do
       current_player = game.players[0]
       other_player = game.players[1]
-      
+
       # Set up current player with one card that plays
       current_player.hand = Jedna::Hand.new
       card = Jedna::Card.new(:red, 5)
       current_player.hand << card
       game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
-      
+
       # Other player has cards for scoring
       other_player.hand = Jedna::Hand.new
       other_player.hand << [Jedna::Card.new(:blue, 5), Jedna::Card.new(:green, 'skip')]
-      
+
       game.player_card_play(current_player, card)
-      
+
       expect(game.game_state).to eq(0) # Game ended
       # Should see a notification about points (minimum 30)
-      points_notification = game.notifications.find { |n| n.include?("gains") && n.include?("points") }
+      points_notification = game.notifications.find { |n| n.include?('gains') && n.include?('points') }
       expect(points_notification).not_to be_nil
     end
-    
+
     it 'calculates score correctly' do
       # Ensure alice is the current player
       game.instance_variable_set(:@players, [alice, bob])
-      
+
       # Set up alice with one card to win
       alice.hand = Jedna::Hand.new
       alice.hand << Jedna::Card.new(:red, 5)
-      
+
       # Bob has specific cards for scoring
       bob.hand = Jedna::Hand.new
       bob.hand << [
-        Jedna::Card.new(:blue, 9),      # 9 points
+        Jedna::Card.new(:blue, 9), # 9 points
         Jedna::Card.new(:green, 'skip'), # 20 points
         Jedna::Card.new(:wild, 'wild')   # 50 points
       ]
-      
+
       game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
       game.player_card_play(alice, alice.hand[0])
-      
+
       expect(game.instance_variable_get(:@total_score)).to eq(79)
     end
-    
+
     it 'enforces minimum score of 30' do
       current_player = game.players[0]
       other_player = game.players[1]
-      
+
       # Set up for minimal score
       current_player.hand = Jedna::Hand.new
       current_player.hand << Jedna::Card.new(:red, 5)
-      
+
       other_player.hand = Jedna::Hand.new
       other_player.hand << Jedna::Card.new(:blue, 1) # Only 1 point
-      
+
       game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
       game.player_card_play(current_player, current_player.hand[0])
-      
+
       # Check notification mentions 30 points (minimum)
-      points_notification = game.notifications.find { |n| n.include?("gains 30 points") }
+      points_notification = game.notifications.find { |n| n.include?('gains 30 points') }
       expect(points_notification).not_to be_nil
     end
 
@@ -636,24 +638,24 @@ RSpec.describe Jedna::Game do
       expect(game.instance_variable_get(:@stacked_cards)).to eq(0)
     end
   end
-  
+
   describe 'double play' do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }
-    
+
     before do
       game.add_player(alice)
       game.add_player(bob)
       game.start_game
       game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
     end
-    
+
     it 'allows playing two identical cards' do
       current_player = game.players[0]
       card1 = Jedna::Card.new(:red, 5)
       card2 = Jedna::Card.new(:red, 5)
       current_player.hand << [card1, card2]
-      
+
       expect(game.player_card_play(current_player, card1, true)).to be true
       # Player started with 7 cards, added 2, played 2, should have 7 left
       expect(current_player.hand.size).to eq(7)
@@ -673,33 +675,33 @@ RSpec.describe Jedna::Game do
       expect(game.top_card.to_s).to eq('wg')
       expect(game.notifications).to include('[Playing two cards]')
     end
-    
+
     it 'rejects double play with picked card' do
       current_player = game.players[0]
-      
+
       # Set up the game state:
       # - Top card is green 5
       game.instance_variable_set(:@top_card, Jedna::Card.new(:green, 5))
-      
+
       # - Player already has a red 5 in hand
       current_player.hand = Jedna::Hand.new
       existing_r5 = Jedna::Card.new(:red, 5)
       current_player.hand << existing_r5
-      current_player.hand << Jedna::Card.new(:blue, 3)  # Add another card so game doesn't end
-      
+      current_player.hand << Jedna::Card.new(:blue, 3) # Add another card so game doesn't end
+
       # - Ensure the next card in the deck is red 5
       picked_r5 = Jedna::Card.new(:red, 5)
       card_stack = game.instance_variable_get(:@card_stack)
       # Insert the red 5 at the beginning of the deck so it gets picked
       card_stack.unshift(picked_r5)
-      
+
       # Pick the card (which will be red 5)
       game.pick_single
-      
+
       # Verify the picked card is indeed red 5
       picked_card = game.instance_variable_get(:@picked_card)
       expect(picked_card.to_s).to eq('r5')
-      
+
       # Attempting to play double r5 should fail
       hand_size = current_player.hand.size
       top_card = game.top_card
@@ -710,11 +712,11 @@ RSpec.describe Jedna::Game do
       expect(game.players[0]).to eq(current_player)
     end
   end
-  
+
   describe 'uno announcement' do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }
-    
+
     before do
       game.add_player(alice)
       game.add_player(bob)
@@ -726,36 +728,36 @@ RSpec.describe Jedna::Game do
       alice.hand << [Jedna::Card.new(:red, 5), Jedna::Card.new(:blue, 5)]
       game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
     end
-    
+
     it 'announces UNO when player has one card left' do
       current_player = game.players[0]
       # Clear hand and give exactly 2 cards
       current_player.hand = Jedna::Hand.new
       current_player.hand << [Jedna::Card.new(:red, 5), Jedna::Card.new(:blue, 5)]
       game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
-      
+
       game.player_card_play(current_player, current_player.hand[0])
       # Check for the announcement (contains IRC color codes)
-      uno_announcement = game.notifications.find { |n| n.include?("has just one card left!") }
+      uno_announcement = game.notifications.find { |n| n.include?('has just one card left!') }
       expect(uno_announcement).not_to be_nil
       expect(uno_announcement).to include(current_player.to_s)
     end
-    
+
     it 'announces when player has three cards left' do
       current_player = game.players[0]
       # Clear hand and give exactly 4 cards
       current_player.hand = Jedna::Hand.new
       current_player.hand << [
         Jedna::Card.new(:red, 5),
-        Jedna::Card.new(:blue, 5), 
+        Jedna::Card.new(:blue, 5),
         Jedna::Card.new(:green, 5),
         Jedna::Card.new(:yellow, 5)
       ]
       game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
-      
+
       game.player_card_play(current_player, current_player.hand[0])
       # The message includes IRC color code before "three"
-      three_cards_announcement = game.notifications.find { |n| n.include?("three") && n.include?("cards left!") }
+      three_cards_announcement = game.notifications.find { |n| n.include?('three') && n.include?('cards left!') }
       expect(three_cards_announcement).not_to be_nil
       expect(three_cards_announcement).to include(current_player.to_s)
     end
@@ -765,7 +767,7 @@ RSpec.describe Jedna::Game do
     let(:alice) { Jedna::Player.new('Alice') }
     let(:bob) { Jedna::Player.new('Bob') }
     let(:charlie) { Jedna::Player.new('Charlie') }
-    
+
     before do
       game.add_player(alice)
       game.add_player(bob)
@@ -774,16 +776,16 @@ RSpec.describe Jedna::Game do
       # Set known player order
       game.instance_variable_set(:@players, [alice, bob, charlie])
     end
-    
+
     it 'detects when player has more than 35 cards' do
       # Give bob 36 cards
       bob.hand = Jedna::Hand.new
       36.times { bob.hand << Jedna::Card.new(:red, 5) }
-      
+
       result = game.player_with_too_many_cards_exists?
       expect(result).to eq(bob)
     end
-    
+
     it 'returns nil when no player has more than 35 cards' do
       # Reset hands to normal sizes
       alice.hand = Jedna::Hand.new
@@ -794,30 +796,30 @@ RSpec.describe Jedna::Game do
         bob.hand << Jedna::Card.new(:blue, 5)
         charlie.hand << Jedna::Card.new(:green, 5)
       end
-      
+
       result = game.player_with_too_many_cards_exists?
       expect(result).to be_nil
     end
-    
+
     it 'triggers instant loss when drawing cards takes total over 35' do
       # Set up alice as current player with 34 cards
       game.instance_variable_set(:@players, [alice, bob, charlie])
       alice.hand = Jedna::Hand.new
       34.times { alice.hand << Jedna::Card.new(:red, 5) }
-      
+
       # Force alice to draw 2 cards (takes her to 36)
       game.instance_variable_set(:@stacked_cards, 2)
       game.instance_variable_set(:@game_state, 2)
-      
-      initial_game_state = game.game_state
+
+      game.game_state
       game.give_cards_to_player(alice, 2)
-      
+
       # Game should have ended with instant loss
       expect(game.game_state).to eq(0)
       expect(game.notifications).to include(match(/loses instantly for having more than 35 cards \(36 cards\)/))
-      
+
       # Winner should be determined (first remaining player after losing player is removed)
-      points_notification = game.notifications.find { |n| n.include?("gains") && n.include?("points") }
+      points_notification = game.notifications.find { |n| n.include?('gains') && n.include?('points') }
       expect(points_notification).not_to be_nil
     end
 
@@ -836,66 +838,66 @@ RSpec.describe Jedna::Game do
       expect(game.players.last).to eq(alice)
       expect(turn_hooks).to eq(0)
     end
-    
+
     it 'triggers instant loss during card play check' do
       # Set alice as current player with exactly 35 cards
       game.instance_variable_set(:@players, [alice, bob, charlie])
       alice.hand = Jedna::Hand.new
       35.times { alice.hand << Jedna::Card.new(:red, 5) }
-      
+
       # Add one more card to trigger the condition
       alice.hand << Jedna::Card.new(:blue, 7)
-      
+
       # Set a matching top card
       game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
-      
+
       # Try to play a card (the check happens after playing)
       playable_card = Jedna::Card.new(:red, 9)
       alice.hand << playable_card
-      
+
       game.player_card_play(alice, playable_card)
-      
+
       # Game should have ended with instant loss
       expect(game.game_state).to eq(0)
       expect(game.notifications).to include(match(/loses instantly for having more than 35 cards/))
     end
-    
+
     it 'properly rearranges players when instant loss occurs' do
       # Set up game with charlie having too many cards
       game.instance_variable_set(:@players, [charlie, alice, bob])
       charlie.hand = Jedna::Hand.new
       36.times { charlie.hand << Jedna::Card.new(:red, 5) }
-      
+
       # Trigger the instant loss check
       game.send(:finish_game_with_instant_loss, charlie)
-      
+
       # Charlie should be at the end, and alice should be the winner (first)
       expect(game.players.last).to eq(charlie)
       expect(game.players.first).to eq(alice)
-      
+
       # Should see loss notification
       expect(game.notifications).to include(match(/Charlie loses instantly/))
       expect(game.notifications).to include(match(/Alice gains.*points/))
     end
-    
+
     it 'calculates score correctly for instant loss' do
       # Set specific hands for testing
       game.instance_variable_set(:@players, [alice, bob, charlie])
-      
+
       # Alice will be the winner
       alice.hand = Jedna::Hand.new
       alice.hand << [Jedna::Card.new(:blue, 5), Jedna::Card.new(:green, 3)] # 8 points
-      
+
       # Bob has some cards
-      bob.hand = Jedna::Hand.new  
+      bob.hand = Jedna::Hand.new
       bob.hand << [Jedna::Card.new(:red, 7), Jedna::Card.new(:yellow, 'skip')] # 27 points
-      
+
       # Charlie loses with too many cards
       charlie.hand = Jedna::Hand.new
       37.times { charlie.hand << Jedna::Card.new(:wild, 'wild') } # Doesn't count in winner's score
-      
+
       game.send(:finish_game_with_instant_loss, charlie)
-      
+
       # Total score should be alice's + bob's hands (35 points total, uses minimum 30)
       expect(game.instance_variable_get(:@total_score)).to eq(35)
     end

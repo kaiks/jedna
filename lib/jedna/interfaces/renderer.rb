@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'cgi'
 
 module Jedna
@@ -8,66 +10,66 @@ module Jedna
     def render_card(card)
       raise NotImplementedError, "#{self.class} must implement render_card"
     end
-    
+
     # Render a hand of cards
     def render_hand(cards)
       raise NotImplementedError, "#{self.class} must implement render_hand"
     end
-    
+
     # Render the current game state
     def render_game_state(state)
       raise NotImplementedError, "#{self.class} must implement render_game_state"
     end
-    
+
     # Render player order
     def render_player_order(players)
       raise NotImplementedError, "#{self.class} must implement render_player_order"
     end
   end
-  
+
   # Plain text renderer
   class TextRenderer
     include Renderer
-    
+
     def render_card(card)
       card.to_s
     end
-    
+
     def render_hand(cards)
       cards.map { |card| render_card(card) }.join(' ')
     end
-    
+
     def render_game_state(state)
       "Game state: #{state[:status]} | Top card: #{render_card(state[:top_card])} | Current player: #{state[:current_player]}"
     end
-    
+
     def render_player_order(players)
       "Player order: #{players.join(' -> ')}"
     end
   end
-  
+
   # IRC color-coded renderer
   class IrcRenderer
     include Renderer
-    
+
     def render_card(card)
       "#{3.chr}#{color_code(card.color)}[#{card.normalize_figure.to_s.upcase}]"
     end
-    
+
     def render_hand(cards)
       cards.map { |card| render_card(card) }.join(' ')
     end
-    
+
     def render_game_state(state)
       "#{state[:current_player]}'s turn. Top card: #{render_card(state[:top_card])}"
     end
-    
+
     def render_player_order(players)
       "Current order: #{players.join(' ')}"
     end
-    
+
     private
-    
+
     def color_code(color)
       case color
       when :green then 3
@@ -79,22 +81,22 @@ module Jedna
       end
     end
   end
-  
+
   # HTML renderer (for potential web interface)
   class HtmlRenderer
     include Renderer
-    
+
     def render_card(card)
       color_class = escape_html(card.color)
       figure = escape_html(card.normalize_figure.to_s.upcase)
       "<span class='uno-card #{color_class}'>#{figure}</span>"
     end
-    
+
     def render_hand(cards)
       cards_html = cards.map { |card| render_card(card) }.join(' ')
       "<div class='uno-hand'>#{cards_html}</div>"
     end
-    
+
     def render_game_state(state)
       <<~HTML
         <div class='game-state'>
@@ -104,7 +106,7 @@ module Jedna
         </div>
       HTML
     end
-    
+
     def render_player_order(players)
       rendered_players = players.map { |player| escape_html(player) }
       "<div class='player-order'>#{rendered_players.join(' &rarr; ')}</div>"

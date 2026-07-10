@@ -101,11 +101,17 @@ encoding:
 - `rl_agent/eval_sb3.py`: deterministic or stochastic checkpoint evaluation.
 - `rl_agent/debug_one_game.py`: one-episode watchdog/debug runner.
 - `rl_agent/test_encoding.py`: dependency-free encoding and mask regression tests.
+- `rl_agent/TRAINING.md`: improved curriculum, reproducible commands, and results.
 - `engine_bridge.rb`: clean JSON bridge between Gymnasium and the game engine.
 
 The observation key `war_cards_to_draw` remains in the model input for
 checkpoint compatibility, but it is populated from the engine protocol's
 `stacked_cards` field.
+
+The current neural action/observation layout adds exact-card features and
+double-play actions, so checkpoints from the earlier aggregate layout must be
+retrained. See [rl_agent/TRAINING.md](rl_agent/TRAINING.md) for the rationale,
+expert-imitation warm start, and measured brief-run results.
 
 ## PPO workflow
 
@@ -182,3 +188,6 @@ action contract.
 
 Treat configured commands as trusted input. The process runner executes command
 strings and is not a sandbox for untrusted programs.
+
+Keep `turn_timeout` at 10 seconds or higher for PPO agents: importing Torch and
+loading a checkpoint makes the first action slower than later predictions.

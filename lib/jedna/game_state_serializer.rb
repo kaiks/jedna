@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Jedna
   class GameStateSerializer
     def serialize_for_current_player(game)
@@ -17,7 +19,7 @@ module Jedna
           stacked_cards: game.stacked_cards,
           already_picked: already_picked,
           picked_card: already_picked ? serialize_card(game.picked_card) : nil,
-          other_players: serialize_other_players(game.players[1..-1]),
+          other_players: serialize_other_players(game.players[1..]),
           available_actions: calculate_available_actions(game, playable_cards),
           playable_cards: playable_cards
         }
@@ -89,7 +91,7 @@ module Jedna
 
       if already_picked
         # After drawing a card, only the picked card can be played; otherwise pass.
-        picked_card = game.picked_card
+        game.picked_card
         actions << 'play' unless playable_cards.empty?
         actions << 'pass'
         return actions
@@ -97,8 +99,8 @@ module Jedna
 
       # Normal turn (haven't drawn yet)
       actions << 'play' unless playable_cards.empty?
-      actions << 'draw' if stacked_cards == 0
-      actions << 'pass' if stacked_cards > 0
+      actions << 'draw' if stacked_cards.zero?
+      actions << 'pass' if stacked_cards.positive?
       actions
     end
 
@@ -107,6 +109,7 @@ module Jedna
       if already_picked
         picked_card = game.picked_card
         return [] unless picked_card && game.send(:playable_now?, picked_card)
+
         return [serialize_card(picked_card)]
       end
 

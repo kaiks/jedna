@@ -8,6 +8,7 @@ import select
 from typing import Any, Dict, Optional, Tuple
 
 import gymnasium as gym
+import numpy as np
 from gymnasium import spaces
 
 from .encoding import ActionSpace, encode_action_mask, pack_observation_for_model
@@ -18,18 +19,26 @@ class JednaVsProcessEnv(gym.Env):
 
     - Spawns Ruby engine_bridge.rb with OPPONENT_CMD env set.
     - Observations are dict features; action space is Discrete over fixed action set.
-    - Rewards: +1 on win, -1 on loss, 0 otherwise.
+    - Rewards: terminal result plus dense hand-progress shaping.
     - info contains 'action_mask' for MaskablePPO.
     """
 
     metadata = {"render_modes": []}
 
-    def __init__(self, engine_path: str, opponent_cmd: str, *, max_seconds: float = 60.0):
+    def __init__(
+        self,
+        engine_path: str,
+        opponent_cmd: str,
+        *,
+        max_seconds: float = 60.0,
+        reward_scale: float = 0.05,
+    ):
         super().__init__()
         self.engine_path = engine_path
         self.opponent_cmd = opponent_cmd
         self.proc: Optional[subprocess.Popen] = None
         self.max_seconds = max_seconds
+        self.reward_scale = reward_scale
         self.space = ActionSpace()
 
         # Build observation space matching encode_observation keys
@@ -48,6 +57,11 @@ class JednaVsProcessEnv(gym.Env):
                 "playable_count": spaces.Box(low=0, high=50, shape=(1,), dtype=float),
                 "hand_type_counts": spaces.Box(low=0, high=50, shape=(6,), dtype=float),
                 "playable_type_counts": spaces.Box(low=0, high=50, shape=(6,), dtype=float),
+                "card_counts": spaces.Box(low=0, high=4, shape=(54,), dtype=float),
+                "playable_cards": spaces.Box(low=0, high=1, shape=(54,), dtype=float),
+                "top_card": spaces.Box(low=0, high=1, shape=(54,), dtype=float),
+                "already_picked": spaces.Box(low=0, high=1, shape=(1,), dtype=float),
+                "available_actions": spaces.Box(low=0, high=1, shape=(3,), dtype=float),
             }
         )
         self.action_space = spaces.Discrete(self.space.size())
@@ -55,10 +69,13 @@ class JednaVsProcessEnv(gym.Env):
         self._last_state: Optional[Dict[str, Any]] = None
         self._watchdog: Optional[threading.Thread] = None
         self._timed_out = False
+        self._engine_seed = 0
+        self._previous_sizes = (0, 0)
 
     def _popen(self) -> subprocess.Popen:
         env = os.environ.copy()
         env["OPPONENT_CMD"] = self.opponent_cmd
+        env["JEDNA_SEED"] = str(self._engine_seed)
         return subprocess.Popen(
             ["ruby", self.engine_path],
             stdin=subprocess.PIPE,
@@ -69,6 +86,7 @@ class JednaVsProcessEnv(gym.Env):
 
     def reset(self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None):
         super().reset(seed=seed)
+        self._engine_seed = int(self.np_random.integers(0, 2**31 - 1))
 
         # Clean up any existing process/watchdog before starting a new episode
         self._stop_watchdog()
@@ -80,6 +98,7 @@ class JednaVsProcessEnv(gym.Env):
         self._watchdog.start()
 
         obs = self._wait_for_request()
+        self._previous_sizes = self._state_sizes(self._last_state or {})
         info = {"action_mask": self.valid_action_mask()}
         return obs, info
 
@@ -118,15 +137,27 @@ class JednaVsProcessEnv(gym.Env):
                 self._last_state = msg.get("state", {})
                 obs = self._obs_from_state(self._last_state)
                 info = {"action_mask": self.valid_action_mask()}
-                return obs, 0.0, False, False, info
+                reward = self._shaping_reward(*self._state_sizes(self._last_state))
+                return obs, reward, False, False, info
             if mtype == "game_end":
                 winner = msg.get("winner")
-                reward = 1.0 if winner == "agent1" else -1.0
-                return self._obs_from_state(self._last_state), reward, True, False, {"reason": "game_end"}
+                counts = msg.get("card_counts", {})
+                own_cards = int(counts.get("agent1", self._previous_sizes[0]))
+                opponent_cards = int(counts.get("agent2", self._previous_sizes[1]))
+                reward = self._shaping_reward(own_cards, opponent_cards)
+                reward += 1.0 if winner == "agent1" else -1.0
+                return self._obs_from_state(self._last_state), reward, True, False, {
+                    "reason": "game_end",
+                    "winner": winner,
+                }
 
     # Mask function for MaskablePPO
     def valid_action_mask(self):
         return encode_action_mask(self.space, self._last_state or {})
+
+    @property
+    def current_state(self) -> Dict[str, Any]:
+        return self._last_state or {}
 
     def close(self):
         self._stop_watchdog()
@@ -181,10 +212,25 @@ class JednaVsProcessEnv(gym.Env):
         self.proc.stdin.flush()
 
     def _obs_from_state(self, state: Optional[Dict[str, Any]]):
-        return pack_observation_for_model(state or {})
+        observation = pack_observation_for_model(state or {})
+        return {
+            key: np.asarray(value, dtype=np.float64)
+            for key, value in observation.items()
+        }
 
     def _zero_obs(self):
         return pack_observation_for_model({})
+
+    def _state_sizes(self, state: Dict[str, Any]):
+        opponents = state.get("other_players", [])
+        opponent_cards = int(opponents[0].get("card_count", 0)) if opponents else 0
+        return len(state.get("hand", [])), opponent_cards
+
+    def _shaping_reward(self, own_cards: int, opponent_cards: int) -> float:
+        previous_own, previous_opponent = self._previous_sizes
+        progress = (previous_own - own_cards) + (opponent_cards - previous_opponent)
+        self._previous_sizes = (own_cards, opponent_cards)
+        return self.reward_scale * progress
 
     def _terminate_proc(self):
         if not self.proc:

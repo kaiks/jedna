@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'open3'
 require 'json'
 require 'timeout'
@@ -15,20 +17,20 @@ module JednaTournaments
       @stderr_thread = nil
       @stderr_tail = []
     end
-    
+
     def start
-      raise AgentError, "Agent already running" if running?
+      raise AgentError, 'Agent already running' if running?
 
       cleanup_process_resources if @wait_thread
       @stdin, @stdout, @stderr, @wait_thread = Open3.popen3(@command)
       @stdin.sync = true
       @stdout.sync = true
       start_stderr_drain
-    rescue => e
+    rescue StandardError => e
       cleanup_process_resources
       raise AgentError, "Failed to start agent: #{e.message}"
     end
-    
+
     def stop(graceful: true)
       return cleanup_process_resources unless @wait_thread
 
@@ -39,46 +41,47 @@ module JednaTournaments
     ensure
       cleanup_process_resources
     end
-    
+
     def running?
       return false unless @wait_thread
+
       @wait_thread.alive?
     end
-    
+
     def request_action(game_state, timeout: nil)
-      raise AgentError, "Agent not running" unless running?
-      
+      raise AgentError, 'Agent not running' unless running?
+
       timeout ||= JednaTournaments.configuration.timeout
-      
+
       request = {
         type: 'request_action',
         state: game_state
       }
-      
+
       response = nil
-      
+
       Timeout.timeout(timeout) do
         @stdin.puts JSON.generate(request)
         response_line = @stdout.gets
-        
-        raise AgentError, "Agent closed output" if response_line.nil?
-        
+
+        raise AgentError, 'Agent closed output' if response_line.nil?
+
         begin
           response = JSON.parse(response_line.strip)
-        rescue JSON::ParserError => e
+        rescue JSON::ParserError
           raise AgentError, "Invalid JSON response from agent: #{response_line}"
         end
       end
-      
+
       response
     rescue Timeout::Error
       stop(graceful: false)
       raise TimeoutError, "Agent did not respond within #{timeout} seconds"
     end
-    
+
     def notify(message)
       return unless running?
-      
+
       if message.is_a?(String)
         # Parse it to ensure it's valid JSON, then send it
         JSON.parse(message)
@@ -88,7 +91,7 @@ module JednaTournaments
       end
     rescue Errno::EPIPE
       # Agent has closed its input, likely exiting
-    rescue => e
+    rescue StandardError => e
       # Log but don't raise - notifications are best effort
       warn "Failed to send notification to agent: #{e.message}"
     end

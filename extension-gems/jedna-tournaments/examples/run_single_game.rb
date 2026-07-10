@@ -18,7 +18,7 @@ require_relative '../lib/jedna_tournaments'
 
 # Runs a single game between two agents for debugging
 class SingleGameRunner
-  TURN_TIMEOUT = 2.0
+  TURN_TIMEOUT = 10.0
   GAME_TIMEOUT = 30
 
   def initialize(agent1_cmd, agent2_cmd)
@@ -110,9 +110,8 @@ class SingleGameRunner
 
     begin
       action = agent.request_action(state[:state], timeout: TURN_TIMEOUT)
-      unless action.is_a?(Hash) && action['action']
-        raise "Invalid agent response: #{action.inspect}"
-      end
+      raise "Invalid agent response: #{action.inspect}" unless action.is_a?(Hash) && action['action']
+
       execute_action(game, player, action)
     rescue StandardError => e
       puts "Error: #{e.message}"

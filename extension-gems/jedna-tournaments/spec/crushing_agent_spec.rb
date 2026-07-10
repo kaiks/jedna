@@ -49,3 +49,31 @@ RSpec.describe CrushingDecider do
     expect(action).to include('card' => 'wd4')
   end
 end
+
+RSpec.describe CrushingBaselineStrategy do
+  def legacy_best_path(strategy, start, cards)
+    cards.permutation.reduce([-Float::INFINITY, []]) do |best, permutation|
+      score = legacy_path_score(strategy, start, cards, permutation)
+      score > best.first ? [score, permutation] : best
+    end
+  end
+
+  def legacy_path_score(strategy, start, cards, permutation)
+    permutation.each_with_index.sum do |card, index|
+      previous = index.zero? ? start : permutation[index - 1]
+      strategy.send(:transition_probability, previous, card, index) *
+        (described_class::DISCOUNT_FACTOR**(cards.length - index - 1))
+    end
+  end
+
+  it 'finds the same path as exhaustive permutation scoring' do
+    strategy = described_class.new
+    start = 'r3'
+    cards = %w[rs b2 r5 wd4 g5 ys w b7]
+
+    _expected_score, expected = legacy_best_path(strategy, start, cards)
+    actual = strategy.send(:best_permutation_path, start, cards)
+
+    expect(actual).to eq(expected)
+  end
+end

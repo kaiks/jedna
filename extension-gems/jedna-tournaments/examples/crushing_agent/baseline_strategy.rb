@@ -19,11 +19,13 @@ class CrushingBaselineStrategy
   PROBABILITY_THRESHOLD = 10
   MAX_PERMUTATION_SIZE = 8
   DISCOUNT_FACTOR = 0.99
+  PathSearch = Data.define(:start, :cards, :final_mask, :selected_counts, :memo)
 
   def decide(state)
     @state = state
     @hand = state['hand'] || []
     @playable_cards = state['playable_cards'] || []
+    @parsed_cards = {}
 
     return draw_or_pass unless @playable_cards.any?
 
@@ -59,8 +61,7 @@ class CrushingBaselineStrategy
 
     if @hand.size >= PROBABILITY_THRESHOLD
       # Strategic subset for performance
-      non_wild = @playable_cards.reject { |c| wild_card?(c) }
-      wilds = @playable_cards.select { |c| wild_card?(c) }
+      wilds, non_wild = @playable_cards.partition { |c| wild_card?(c) }
 
       input + non_wild.take(9 - wilds.size) + wilds
     else
@@ -144,18 +145,47 @@ class CrushingBaselineStrategy
   end
 
   def best_permutation_path(start, cards)
-    best_prob = 0
+    final_mask = (1 << cards.length) - 1
+    search = PathSearch.new(
+      start,
+      cards,
+      final_mask,
+      (0..final_mask).map { |mask| mask.digits(2).sum },
+      {}
+    )
+    _score, path = best_probability_suffix(search, nil, 0)
+    path
+  end
+
+  def best_probability_suffix(search, last_index, selected_mask)
+    return [0.0, []] if selected_mask == search.final_mask
+
+    key = [last_index, selected_mask]
+    return search.memo.fetch(key) if search.memo.key?(key)
+
+    current_card = last_index.nil? ? search.start : search.cards[last_index]
+    best_score = -Float::INFINITY
     best_path = []
 
-    cards.permutation.each do |perm|
-      prob = calculate_path_probability([start] + perm)
-      if prob > best_prob
-        best_prob = prob
-        best_path = perm
-      end
+    search.cards.each_index do |index|
+      next if selected_mask[index] == 1
+
+      score, path = probability_candidate(search, current_card, selected_mask, index)
+      next unless score > best_score
+
+      best_score = score
+      best_path = path
     end
 
-    best_path
+    search.memo[key] = [best_score, best_path]
+  end
+
+  def probability_candidate(search, current_card, selected_mask, index)
+    next_score, next_path = best_probability_suffix(search, index, selected_mask | (1 << index))
+    position = search.selected_counts[selected_mask]
+    discount = DISCOUNT_FACTOR**(search.cards.length - position - 1)
+    score = (transition_probability(current_card, search.cards[index], position) * discount) + next_score
+    [score, [search.cards[index]] + next_path]
   end
 
   def greedy_path(start, cards)
@@ -179,25 +209,6 @@ class CrushingBaselineStrategy
     candidates.max_by do |card|
       transition_probability(current, card, position)
     end
-  end
-
-  def calculate_path_probability(path)
-    return 0 if path.size < 2
-
-    probabilities = (0...(path.size - 1)).map do |i|
-      transition_probability(path[i], path[i + 1], i)
-    end
-
-    1 + apply_discounting(probabilities).sum
-  end
-
-  def apply_discounting(probabilities)
-    factor = 1.0
-    probabilities.reverse.map do |prob|
-      discounted = prob * factor
-      factor *= DISCOUNT_FACTOR
-      discounted
-    end.reverse
   end
 
   def transition_probability(from_card, to_card, position)
@@ -235,6 +246,13 @@ class CrushingBaselineStrategy
   end
 
   def parse_card(card)
+    @parsed_cards ||= {}
+    return @parsed_cards.fetch(card) if @parsed_cards.key?(card)
+
+    @parsed_cards[card] = parse_uncached_card(card)
+  end
+
+  def parse_uncached_card(card)
     return %w[w wild] if %w[w wd4].include?(card)
 
     [card[0], card[1..]]

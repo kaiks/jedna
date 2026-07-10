@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Jedna
   # Interface for player identity management
   # Allows different identity providers (IRC, web, CLI, etc.)

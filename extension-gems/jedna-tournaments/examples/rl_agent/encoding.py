@@ -1,3 +1,4 @@
+from collections import Counter
 from typing import Dict, Any, List, Tuple
 
 
@@ -21,7 +22,7 @@ class ActionSpace:
     """Fixed discrete action space mapping indices to concrete protocol actions.
 
     Ordering:
-    [ draw, pass, play:<each card in all_cards()> ]
+    [ draw, pass, play:<card>, double_play:<card> ]
     """
 
     def __init__(self) -> None:
@@ -41,6 +42,11 @@ class ActionSpace:
             self.index_to_action.append(("play", card))
             self.action_to_index[("play", card)] = idx
 
+        for card in self.cards:
+            idx = len(self.index_to_action)
+            self.index_to_action.append(("double_play", card))
+            self.action_to_index[("double_play", card)] = idx
+
     def size(self) -> int:
         return len(self.index_to_action)
 
@@ -50,8 +56,10 @@ class ActionSpace:
             return {"action": "draw"}
         if kind == "pass":
             return {"action": "pass"}
-        # kind == play
+        # kind == play or double_play
         action = {"action": "play", "card": payload}
+        if kind == "double_play":
+            action["double_play"] = True
         if payload in ("w", "wd4"):
             # Choose best color by hand frequency
             color_counts: Dict[str, int] = {c: 0 for c in COLORS}
@@ -67,6 +75,36 @@ class ActionSpace:
                 "y": "yellow",
             }[best]
         return action
+
+    def from_protocol(self, action: Dict[str, Any]) -> int:
+        """Map an expert/protocol action back to its discrete index."""
+        kind = action.get("action")
+        if kind in ("draw", "pass"):
+            return self.action_to_index[(kind, "")]
+        if kind != "play":
+            raise ValueError(f"unsupported action: {action!r}")
+
+        play_kind = "double_play" if action.get("double_play") is True else "play"
+        card = canonical_card(action.get("card", ""))
+        return self.action_to_index[(play_kind, card)]
+
+
+def canonical_card(card: str) -> str:
+    """Strip the selected color suffix from a played wild card."""
+    if card.startswith("wd4"):
+        return "wd4"
+    if card.startswith("w"):
+        return "w"
+    return card
+
+
+def card_color(card: str) -> str:
+    """Return the active color, including the selected color of a wild."""
+    if card.startswith("wd4"):
+        return card[3:4]
+    if card.startswith("w"):
+        return card[1:2]
+    return card[0:1]
 
 
 def encode_observation(state: Dict[str, Any]) -> Dict[str, Any]:
@@ -109,8 +147,9 @@ def encode_observation(state: Dict[str, Any]) -> Dict[str, Any]:
             wd4_count += 1
 
     top = state.get("top_card") or ""
-    top_color = top[0] if top else ""
-    top_figure = top[1:] if len(top) > 1 else ""
+    canonical_top = canonical_card(top)
+    top_color = card_color(top)
+    top_figure = canonical_top if canonical_top in WILDS else canonical_top[1:]
 
     opponents = state.get("other_players", [])
     opp_sizes = [int(p.get("card_count", 0)) for p in opponents]
@@ -165,6 +204,11 @@ def encode_observation(state: Dict[str, Any]) -> Dict[str, Any]:
             "wild": p_wild,
             "wd4": p_wd4,
         },
+        "card_counts": Counter(canonical_card(card) for card in hand),
+        "playable_card_counts": Counter(canonical_card(card) for card in playable),
+        "top_card": canonical_top,
+        "already_picked": bool(state.get("already_picked", False)),
+        "available_actions": list(state.get("available_actions", []) or []),
     }
 
 
@@ -190,6 +234,16 @@ def pack_observation_for_model(state: Dict[str, Any]) -> Dict[str, Any]:
         "playable_type_counts": [
             float(raw["playable_type_counts"][key]) for key in TYPE_KEYS
         ],
+        "card_counts": [float(raw["card_counts"][card]) for card in all_cards()],
+        "playable_cards": [
+            float(raw["playable_card_counts"][card] > 0) for card in all_cards()
+        ],
+        "top_card": [float(raw["top_card"] == card) for card in all_cards()],
+        "already_picked": [float(raw["already_picked"])],
+        "available_actions": [
+            float(action in raw["available_actions"])
+            for action in ("play", "draw", "pass")
+        ],
     }
 
 
@@ -197,6 +251,7 @@ def encode_action_mask(space: ActionSpace, state: Dict[str, Any]) -> List[int]:
     """Binary mask for valid actions by index."""
     available = set(state.get("available_actions", []) or [])
     playable = set(state.get("playable_cards", []) or [])
+    hand_counts = Counter(canonical_card(card) for card in state.get("hand", []))
 
     size = space.size()
     mask = [0] * size
@@ -210,5 +265,14 @@ def encode_action_mask(space: ActionSpace, state: Dict[str, Any]) -> List[int]:
     for card in space.cards:
         idx = space.action_to_index[("play", card)]
         mask[idx] = 1 if ("play" in available and card in playable) else 0
+
+        double_idx = space.action_to_index[("double_play", card)]
+        double_allowed = (
+            "play" in available
+            and card in playable
+            and hand_counts[card] >= 2
+            and not state.get("already_picked", False)
+        )
+        mask[double_idx] = 1 if double_allowed else 0
 
     return mask

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # #todo: game cancel -> actions
 
 require_relative 'card_stack'
@@ -40,7 +42,7 @@ module Jedna
     end
 
     def started?
-      @game_state > 0
+      @game_state.positive?
     end
 
     # Simple hook setter - allows external code to be notified when game ends
@@ -127,7 +129,7 @@ module Jedna
         end
       end
 
-      return unless card.offensive_value > 0
+      return unless card.offensive_value.positive?
 
       notify "Next player must respond or draw #{card.offensive_value} more cards (total #{@stacked_cards})"
     end
@@ -157,7 +159,7 @@ module Jedna
     end
 
     def show_card_count
-      notify "Card count: #{@players.map { |p| p.to_s + ' ' + p.hand.size.to_s }.join(', ')}"
+      notify "Card count: #{@players.map { |p| "#{p} #{p.hand.size}" }.join(', ')}"
     end
 
     def deal_cards_to_players
@@ -213,7 +215,7 @@ module Jedna
 
     def turn_pass
       if @already_picked == false
-        if @stacked_cards == 0
+        if @stacked_cards.zero?
           notify 'You have to pick a card first.'
           return
         else
@@ -225,7 +227,7 @@ module Jedna
     end
 
     def pick_single
-      if (@already_picked == false) && (@stacked_cards == 0)
+      if (@already_picked == false) && @stacked_cards.zero?
         @already_picked = true
         notify "#{@players[0]} draws a card."
         @picked_card = (give_cards_to_player @players[0], 1)[0]
@@ -271,7 +273,7 @@ module Jedna
     end
 
     def notify_order
-      notify 'Current player order is: ' + @players.join(' ')
+      notify "Current player order is: #{@players.join(' ')}"
     end
 
     def notify_top_card(passes = false)
@@ -352,7 +354,7 @@ module Jedna
           player.hand.destroy(card)
 
           if play_second == true
-            debug '[player_card_play] Double play attempt. Card: ' + card.to_s
+            debug "[player_card_play] Double play attempt. Card: #{card}"
             first_card = card
             card = if first_card.wild?
                      @players[0].hand.find { |candidate| candidate.figure == first_card.figure }
@@ -412,7 +414,7 @@ module Jedna
 
     def finish_game
       @game_state = 0
-      give_cards_to_player(@players[1], @stacked_cards, game_ending: true) if @stacked_cards > 0
+      give_cards_to_player(@players[1], @stacked_cards, game_ending: true) if @stacked_cards.positive?
       @stacked_cards = 0
 
       @total_score = @players.map { |p| p.hand.value }.inject(:+) # tally up points
@@ -431,7 +433,7 @@ module Jedna
       notify winning_string
 
       # Call the hook if one was set
-      @on_game_ended.call if @on_game_ended
+      @on_game_ended&.call
     end
 
     def finish_game_with_instant_loss(losing_player)
@@ -460,10 +462,11 @@ module Jedna
       notify winning_string
 
       # Call the hook if one was set
-      @on_game_ended.call if @on_game_ended
+      @on_game_ended&.call
     end
 
-    def end_game(_nick) # todo
+    # todo
+    def end_game(_nick)
       @game.end = Time.now.strftime('%F %T')
       @game.save
     end
@@ -479,7 +482,7 @@ module Jedna
     def db_save_card(card, player, received = 0)
       return if @casual == 1
 
-      @repository.save_card_action(@game_id, card, player, received > 0)
+      @repository.save_card_action(@game_id, card, player, received.positive?)
     end
 
     def db_create_game
