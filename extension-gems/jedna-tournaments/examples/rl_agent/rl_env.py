@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import os
-import subprocess
-import threading
-import time
 import select
-from typing import Any, Dict, Optional, Tuple
+import subprocess
+import time
+from typing import Any, Dict, Optional
 
 import gymnasium as gym
 import numpy as np
@@ -17,7 +16,7 @@ from .encoding import ActionSpace, encode_action_mask, pack_observation_for_mode
 class JednaVsProcessEnv(gym.Env):
     """Gymnasium env controlling agent1 vs a process opponent.
 
-    - Spawns Ruby engine_bridge.rb with OPPONENT_CMD env set.
+    - Reuses a Ruby engine_bridge.rb process and one process opponent per environment.
     - Observations are dict features; action space is Discrete over fixed action set.
     - Rewards: terminal result plus dense hand-progress shaping.
     - info contains 'action_mask' for MaskablePPO.
@@ -32,6 +31,7 @@ class JednaVsProcessEnv(gym.Env):
         *,
         max_seconds: float = 60.0,
         reward_scale: float = 0.05,
+        persistent_engine: bool = True,
     ):
         super().__init__()
         self.engine_path = engine_path
@@ -39,6 +39,7 @@ class JednaVsProcessEnv(gym.Env):
         self.proc: Optional[subprocess.Popen] = None
         self.max_seconds = max_seconds
         self.reward_scale = reward_scale
+        self.persistent_engine = persistent_engine
         self.space = ActionSpace()
 
         # Build observation space matching encode_observation keys
@@ -67,7 +68,7 @@ class JednaVsProcessEnv(gym.Env):
         self.action_space = spaces.Discrete(self.space.size())
 
         self._last_state: Optional[Dict[str, Any]] = None
-        self._watchdog: Optional[threading.Thread] = None
+        self._deadline: Optional[float] = None
         self._timed_out = False
         self._engine_seed = 0
         self._previous_sizes = (0, 0)
@@ -75,9 +76,13 @@ class JednaVsProcessEnv(gym.Env):
     def _popen(self) -> subprocess.Popen:
         env = os.environ.copy()
         env["OPPONENT_CMD"] = self.opponent_cmd
-        env["JEDNA_SEED"] = str(self._engine_seed)
+        if not self.persistent_engine:
+            env["JEDNA_SEED"] = str(self._engine_seed)
+        command = ["ruby", self.engine_path]
+        if self.persistent_engine:
+            command.append("--persistent")
         return subprocess.Popen(
-            ["ruby", self.engine_path],
+            command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,
@@ -87,15 +92,17 @@ class JednaVsProcessEnv(gym.Env):
     def reset(self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None):
         super().reset(seed=seed)
         self._engine_seed = int(self.np_random.integers(0, 2**31 - 1))
-
-        # Clean up any existing process/watchdog before starting a new episode
-        self._stop_watchdog()
-        self._terminate_proc()
         self._timed_out = False
+        self._deadline = time.monotonic() + self.max_seconds
+        self._last_state = None
+        self._previous_sizes = (0, 0)
 
-        self.proc = self._popen()
-        self._watchdog = threading.Thread(target=self._watch, args=(self.proc,), daemon=True)
-        self._watchdog.start()
+        if self.persistent_engine:
+            self._ensure_persistent_engine()
+            self._write({"type": "reset", "seed": self._engine_seed})
+        else:
+            self._terminate_proc()
+            self.proc = self._popen()
 
         obs = self._wait_for_request()
         self._previous_sizes = self._state_sizes(self._last_state or {})
@@ -104,7 +111,7 @@ class JednaVsProcessEnv(gym.Env):
 
     def step(self, action_idx: int):
         assert self.proc is not None
-        # If engine already ended or watchdog fired, truncate
+        # If the engine ended or the episode deadline expired, truncate.
         if self._timed_out:
             return self._obs_from_state(self._last_state), 0.0, False, True, {"reason": "timeout"}
         if self.proc.poll() is not None:
@@ -160,7 +167,6 @@ class JednaVsProcessEnv(gym.Env):
         return self._last_state or {}
 
     def close(self):
-        self._stop_watchdog()
         self._terminate_proc()
         super().close()
 
@@ -180,13 +186,18 @@ class JednaVsProcessEnv(gym.Env):
         assert self.proc and self.proc.stdout
         import json as _json
 
-        # Poll-read with timeout so we can honor watchdog timeouts
+        # Poll-read until the episode deadline expires.
         while True:
             if self._timed_out:
                 return None
             if self.proc.poll() is not None:
                 return None
-            rlist, _, _ = select.select([self.proc.stdout], [], [], 0.1)
+            timeout = self._read_timeout()
+            if timeout is None:
+                self._timed_out = True
+                self._terminate_proc()
+                return None
+            rlist, _, _ = select.select([self.proc.stdout], [], [], timeout)
             if not rlist:
                 continue
             line = self.proc.stdout.readline()
@@ -201,7 +212,7 @@ class JednaVsProcessEnv(gym.Env):
             try:
                 return _json.loads(s)
             except Exception:
-                # Skip malformed line; keep reading until timeout/watchdog
+                # Skip malformed lines while time remains in the episode.
                 continue
 
     def _write(self, obj: Dict[str, Any]) -> None:
@@ -235,36 +246,41 @@ class JednaVsProcessEnv(gym.Env):
     def _terminate_proc(self):
         if not self.proc:
             return
+        proc = self.proc
         try:
-            self.proc.kill()
+            if self.persistent_engine and proc.poll() is None:
+                self._write({"type": "shutdown"})
+                proc.wait(timeout=1.0)
         except Exception:
             pass
-        try:
-            self.proc.wait(timeout=1.0)
-        except Exception:
-            pass
-        self.proc = None
-
-    def _stop_watchdog(self):
-        if self._watchdog and self._watchdog.is_alive():
+        if proc.poll() is None:
             try:
-                self._watchdog.join(timeout=1.0)
+                proc.kill()
+                proc.wait(timeout=1.0)
             except Exception:
                 pass
-        self._watchdog = None
+        self._close_streams(proc)
+        self.proc = None
 
-    def _watch(self, proc: subprocess.Popen):
-        start = time.time()
-        while True:
-            time.sleep(0.1)
-            if time.time() - start > self.max_seconds:
-                if proc is self.proc:
-                    self._timed_out = True
-                try:
-                    proc.kill()
-                    proc.wait(timeout=1.0)
-                except Exception:
-                    pass
-                return
-            if proc.poll() is not None:
-                return
+    def _ensure_persistent_engine(self):
+        if self.proc and self.proc.poll() is None:
+            return
+
+        self._terminate_proc()
+        self.proc = self._popen()
+
+    def _read_timeout(self) -> Optional[float]:
+        if self._deadline is None:
+            return 0.1
+
+        remaining = self._deadline - time.monotonic()
+        return min(remaining, 0.1) if remaining > 0 else None
+
+    def _close_streams(self, proc: subprocess.Popen) -> None:
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            if stream is None:
+                continue
+            try:
+                stream.close()
+            except Exception:
+                pass

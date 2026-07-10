@@ -22,6 +22,15 @@ a behavior-cloning warm start from any JSON-lines expert.
 The new observation and 110-action layout are intentionally incompatible with
 old PPO checkpoints. Retrain models created before this change.
 
+## Engine lifecycle
+
+Each training environment keeps one Ruby engine and one opponent process alive
+across games. The bridge creates a new game for every seeded `reset` and sends
+the opponent a `game_reset` message, so the standard bundled agents remain
+stateless between episodes without paying process startup cost. Use
+`--per-game-engine` for a third-party opponent that cannot reset its own
+cross-game state.
+
 ## Recommended curriculum
 
 All commands assume this directory's parent (`examples/`) is the current

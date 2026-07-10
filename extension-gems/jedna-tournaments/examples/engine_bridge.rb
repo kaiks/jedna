@@ -16,15 +16,45 @@ srand(Integer(ENV['JEDNA_SEED'])) if ENV['JEDNA_SEED']
 class EngineBridge
   TURN_TIMEOUT = 10.0
 
-  def initialize(opponent_cmd)
+  class Shutdown < StandardError; end
+
+  def initialize(opponent_cmd, persistent: false)
     @opponent_cmd = opponent_cmd
+    @persistent = persistent
     @serializer = Jedna::GameStateSerializer.new
   end
 
   def run
     opp = JednaTournaments::ProcessAgent.new(@opponent_cmd, 'Opponent')
     opp.start
+    @persistent ? run_persistent(opp) : run_game(opp)
+  rescue Shutdown
+    nil
+  ensure
+    stop_agent(opp)
+  end
 
+  private
+
+  def run_persistent(opponent)
+    while (reset = next_reset)
+      srand(Integer(reset['seed'])) if reset['seed']
+      opponent.notify(type: 'game_reset')
+      run_game(opponent)
+    end
+  end
+
+  def next_reset
+    message = safe_read
+    return nil unless message
+
+    raise Shutdown if message['type'] == 'shutdown'
+    raise ArgumentError, "expected reset message, got: #{message.inspect}" unless message['type'] == 'reset'
+
+    message
+  end
+
+  def run_game(opponent)
     # Use silent notifier and null repository for speed/noise-free I/O
     game = Jedna::Game.new('engine_bridge', 1, Jedna::NullNotifier.new, Jedna::TextRenderer.new, Jedna::NullRepository.new)
 
@@ -52,24 +82,16 @@ class EngineBridge
       if current_player.identity.id == 'agent1'
         handle_python_turn(game, current_player)
       else
-        handle_process_turn(game, current_player, opp)
+        handle_process_turn(game, current_player, opponent)
       end
     end
-  ensure
-    begin
-      opp&.stop
-    rescue StandardError
-      nil
-    end
   end
-
-  private
 
   def handle_python_turn(game, player)
     state = @serializer.serialize_for_current_player(game)
     safe_write(type: 'request_action', player: 'agent1', state: state[:state])
 
-    action = safe_read
+    action = read_python_action
     return game.turn_pass unless action
 
     case action['action']
@@ -88,7 +110,7 @@ class EngineBridge
         # Ask again after draw if the drawn card is playable
         new_state = @serializer.serialize_for_current_player(game)
         safe_write(type: 'request_action', player: 'agent1', state: new_state[:state])
-        follow = safe_read
+        follow = read_python_action
         if follow && follow['action'] == 'play'
           card = find_card_in_hand(player.hand, follow['card'])
           if card
@@ -184,6 +206,19 @@ class EngineBridge
   rescue StandardError
     nil
   end
+
+  def read_python_action
+    message = safe_read
+    raise Shutdown if message&.fetch('type', nil) == 'shutdown'
+
+    message
+  end
+
+  def stop_agent(agent)
+    agent&.stop
+  rescue StandardError
+    nil
+  end
 end
 
 opponent_cmd = ENV.fetch('OPPONENT_CMD', nil)
@@ -192,4 +227,5 @@ if opponent_cmd.nil? || opponent_cmd.empty?
   exit 1
 end
 
-EngineBridge.new(opponent_cmd).run
+persistent = ARGV.delete('--persistent')
+EngineBridge.new(opponent_cmd, persistent: persistent).run

@@ -129,6 +129,11 @@ Run the dependency-free PPO encoding tests:
 python3 -m unittest rl_agent.test_encoding
 ```
 
+The trainer keeps one Ruby engine and opponent process alive for each vectorized
+environment. This avoids restarting both processes every episode while still
+resetting the game and seed. Use `--per-game-engine` only for an opponent that
+requires a fresh process for every game.
+
 Train against Simple while iterating quickly:
 
 ```bash

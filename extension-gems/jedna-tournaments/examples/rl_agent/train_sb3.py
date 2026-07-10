@@ -38,6 +38,11 @@ def parse_args():
     parser.add_argument("--model", default="/tmp/jedna_maskppo")
     parser.add_argument("--resume", help="Existing model to continue training")
     parser.add_argument("--timeout", type=float, default=60.0)
+    parser.add_argument(
+        "--per-game-engine",
+        action="store_true",
+        help="Disable the default persistent Ruby engine for compatibility with stateful opponents",
+    )
     parser.add_argument("--envs", type=int, default=4)
     parser.add_argument("--seed", type=int, default=12_345)
     parser.add_argument("--device", default="auto")
@@ -66,6 +71,7 @@ def build_env(engine_path, opponent, args):
         opponent_cmd=opponent,
         max_seconds=args.timeout,
         reward_scale=args.reward_scale,
+        persistent_engine=not args.per_game_engine,
     )
     return ActionMasker(base, mask_fn)
 
