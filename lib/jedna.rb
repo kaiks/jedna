@@ -21,6 +21,9 @@ require_relative 'jedna/thread_safe_game'
 
 # Game state serialization
 require_relative 'jedna/game_state_serializer'
+require_relative 'jedna/action_result'
+require_relative 'jedna/protocol_card_lookup'
+require_relative 'jedna/action_executor'
 
 module Jedna
   class Error < StandardError; end
