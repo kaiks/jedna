@@ -82,5 +82,44 @@ RSpec.describe Jedna::Game, '#on_action_required' do
     expect(successful_calls).to eq(1)
     expect(game).to be_started
   end
+
+  it 'runs after legacy before-turn hooks' do
+    calls = []
+    game.before_player_turn { calls << :before_player_turn }
+    game.on_action_required { calls << :action_required }
+
+    game.start_game(nil, 'Alice')
+
+    expect(calls).to eq(%i[before_player_turn action_required])
+  end
+
+  it 'keeps a thread-safe game locked until the event callback returns' do
+    thread_safe_game_class = Class.new(Jedna::Game) { include ThreadSafeGame }
+    thread_safe_game = thread_safe_game_class.new('creator', 1, Jedna::NullNotifier.new)
+    thread_safe_game.add_player(alice)
+    thread_safe_game.add_player(bob)
+    hook_entered = Queue.new
+    release_hook = Queue.new
+    read_completed = Queue.new
+    thread_safe_game.on_action_required do |_, _, reason|
+      next unless reason == :card_drawn
+
+      hook_entered << true
+      release_hook.pop
+    end
+    thread_safe_game.start_game(nil, 'Alice')
+
+    drawing = Thread.new { thread_safe_game.pick_single }
+    hook_entered.pop
+    reading = Thread.new { read_completed << thread_safe_game.picked_card }
+
+    expect(reading.join(0.05)).to be_nil
+    expect { read_completed.pop(true) }.to raise_error(ThreadError)
+
+    release_hook << true
+    drawing.join
+    reading.join
+    expect(read_completed.pop).not_to be_nil
+  end
 end
 # rubocop:enable Metrics/BlockLength
