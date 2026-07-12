@@ -74,58 +74,26 @@ class InProcessAgentBenchmark
   def take_turn(game, player, policy)
     state = protocol_state(game)
     action = policy.call(state)
+    result = execute_action(game, player, action)
+    return recover_turn(game) if result.error?
 
-    case action['action']
-    when 'play'
-      play_card(game, player, action) || recover_turn(game)
-    when 'draw'
-      draw_and_follow_up(game, player, policy)
-    when 'pass'
-      game.turn_pass
-    else
-      recover_turn(game)
-    end
+    draw_and_follow_up(game, player, policy) if action['action'] == 'draw'
   rescue StandardError
     recover_turn(game)
   end
 
   def draw_and_follow_up(game, player, policy)
-    game.pick_single
     return unless game.started?
     return game.turn_pass unless game.already_picked
 
     state = protocol_state(game)
     action = policy.call(state)
-    if action['action'] == 'play'
-      game.turn_pass unless play_card(game, player, action)
-    else
-      game.turn_pass
-    end
+    result = execute_action(game, player, action)
+    game.turn_pass if result.error? && game.started?
   end
 
-  def play_card(game, player, action)
-    card = find_card(player.hand, action['card'])
-    return false unless card
-
-    if card.wild?
-      color = action['wild_color']
-      return false unless color
-
-      card.set_wild_color(color)
-    end
-
-    game.player_card_play(player, card, action['double_play'] == true)
-  end
-
-  def find_card(hand, card_string)
-    case card_string
-    when 'w'
-      hand.find { |card| card.figure == 'wild' }
-    when 'wd4'
-      hand.find { |card| card.figure == 'wild+4' }
-    else
-      hand.find { |card| card.to_s == card_string }
-    end
+  def execute_action(game, player, action)
+    Jedna::ActionExecutor.new(game).execute(action, player: player)
   end
 
   def recover_turn(game)

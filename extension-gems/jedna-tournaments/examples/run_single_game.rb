@@ -120,32 +120,15 @@ class SingleGameRunner
   end
 
   def execute_action(game, player, action)
-    case action['action']
-    when 'play'
-      play_card(game, player, action)
-    when 'draw'
-      draw_and_maybe_play(game, player)
-    when 'pass'
-      game.turn_pass
-    else
-      puts "Unknown action: #{action['action']}"
-      handle_error(game)
-    end
-  end
+    result = Jedna::ActionExecutor.new(game).execute(action, player: player)
+    return handle_error(game) if result.error?
 
-  def play_card(game, player, action)
-    card = find_card_in_hand(player.hand, action['card'])
-    return handle_error(game) unless card
-
-    configure_wild_color(card, action['wild_color'])
-    played = game.player_card_play(player, card, action['double_play'] == true)
-    handle_error(game) unless played
-    played
+    draw_and_maybe_play(game, player) if action['action'] == 'draw'
+    result
   end
 
   def draw_and_maybe_play(game, player)
-    game.pick_single
-
+    return unless game.started?
     return unless game.already_picked
 
     # Allow playing drawn card
@@ -158,11 +141,8 @@ class SingleGameRunner
       return
     end
 
-    if follow_up['action'] == 'play'
-      play_card(game, player, follow_up)
-    else
-      game.turn_pass
-    end
+    result = Jedna::ActionExecutor.new(game).execute(follow_up, player: player)
+    game.turn_pass if result.error? && game.started?
   end
 
   def handle_error(game)
@@ -170,23 +150,6 @@ class SingleGameRunner
 
     game.pick_single unless game.already_picked
     game.turn_pass if game.started?
-  end
-
-  def find_card_in_hand(hand, card_string)
-    case card_string
-    when 'w'
-      hand.find { |c| c.figure == 'wild' }
-    when 'wd4'
-      hand.find { |c| c.figure == 'wild+4' }
-    else
-      hand.find { |c| c.to_s == card_string }
-    end
-  end
-
-  def configure_wild_color(card, color_name)
-    return unless color_name && ['wild', 'wild+4'].include?(card.figure)
-
-    card.set_wild_color(color_name.to_sym)
   end
 
   def handle_game_end(game)

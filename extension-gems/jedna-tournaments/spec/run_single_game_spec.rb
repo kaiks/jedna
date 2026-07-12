@@ -3,6 +3,7 @@
 require 'spec_helper'
 require_relative '../examples/run_single_game'
 
+# rubocop:disable Metrics/BlockLength
 RSpec.describe SingleGameRunner do
   describe '#run_game_loop' do
     it 'drives turns explicitly after starting the game' do
@@ -22,33 +23,40 @@ RSpec.describe SingleGameRunner do
     end
   end
 
-  describe '#play_card' do
-    it 'passes the double-play option on the original play' do
+  describe '#execute_action' do
+    it 'delegates complete protocol actions to the shared executor' do
       runner = described_class.allocate
-      card = Jedna::Card.new(:red, 5)
       player = Jedna::Player.new('Alice')
-      player.hand << card
       game = instance_double(Jedna::Game)
       action = { 'action' => 'play', 'card' => 'r5', 'double_play' => true }
+      executor = instance_double(Jedna::ActionExecutor)
+      result = Jedna::ActionResult.new(success: true, code: 'ok', message: nil, action: 'play')
 
-      expect(game).to receive(:player_card_play).with(player, card, true).and_return(true)
+      allow(Jedna::ActionExecutor).to receive(:new).with(game).and_return(executor)
+      expect(executor).to receive(:execute).with(action, player: player).and_return(result)
 
-      runner.send(:play_card, game, player, action)
+      expect(runner.send(:execute_action, game, player, action)).to eq(result)
     end
 
-    it 'falls back to draw and pass when a play is rejected' do
+    it 'falls back to draw and pass when the executor rejects an action' do
       runner = described_class.allocate
-      card = Jedna::Card.new(:red, 5)
       player = Jedna::Player.new('Alice')
-      player.hand << card
-      game = instance_double(Jedna::Game, started?: true, already_picked: false)
+      game = instance_double(Jedna::Game)
       action = { 'action' => 'play', 'card' => 'r5' }
+      executor = instance_double(Jedna::ActionExecutor)
+      result = Jedna::ActionResult.new(
+        success: false,
+        code: 'card_not_playable',
+        message: 'r5 is not playable',
+        action: 'play'
+      )
 
-      expect(game).to receive(:player_card_play).with(player, card, false).and_return(false)
-      expect(game).to receive(:pick_single).ordered
-      expect(game).to receive(:turn_pass).ordered
+      allow(Jedna::ActionExecutor).to receive(:new).with(game).and_return(executor)
+      allow(executor).to receive(:execute).and_return(result)
+      expect(runner).to receive(:handle_error).with(game)
 
-      runner.send(:play_card, game, player, action)
+      runner.send(:execute_action, game, player, action)
     end
   end
 end
+# rubocop:enable Metrics/BlockLength

@@ -66,29 +66,21 @@ class ArenaGame
 
   def take_turn(game, player, agent)
     action = request_action(game, agent)
+    result = execute_action(game, player, action)
+    return recover_turn(game) if result.error?
 
-    case action['action']
-    when 'play'
-      recover_turn(game) unless play_card(game, player, action)
-    when 'draw'
-      draw_and_follow_up(game, player, agent)
-    when 'pass'
-      game.turn_pass
-    else
-      recover_turn(game)
-    end
+    draw_and_follow_up(game, player, agent) if action['action'] == 'draw'
   rescue StandardError
     recover_turn(game)
   end
 
   def draw_and_follow_up(game, player, agent)
-    game.pick_single
     return unless game.started?
     return game.turn_pass unless game.already_picked
 
     action = request_action(game, agent)
-    played = action['action'] == 'play' && play_card(game, player, action)
-    game.turn_pass unless played
+    result = execute_action(game, player, action)
+    game.turn_pass if result.error? && game.started?
   end
 
   def request_action(game, agent)
@@ -99,28 +91,8 @@ class ArenaGame
     raise "invalid action: #{action.inspect}"
   end
 
-  def play_card(game, player, action)
-    card = find_card(player.hand, action['card'])
-    return false unless card
-
-    if card.wild?
-      return false unless action['wild_color']
-
-      card.set_wild_color(action['wild_color'].to_sym)
-    end
-
-    game.player_card_play(player, card, action['double_play'] == true)
-  end
-
-  def find_card(hand, encoded_card)
-    case encoded_card
-    when 'w'
-      hand.find { |card| card.figure == 'wild' }
-    when 'wd4'
-      hand.find { |card| card.figure == 'wild+4' }
-    else
-      hand.find { |card| card.to_s == encoded_card }
-    end
+  def execute_action(game, player, action)
+    Jedna::ActionExecutor.new(game).execute(action, player: player)
   end
 
   def recover_turn(game)
