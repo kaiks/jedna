@@ -157,6 +157,49 @@ RSpec.describe Jedna::ActionExecutor do
       expect(result.code).to eq('double_play_unavailable')
       expect(current_player.hand.size).to eq(2)
     end
+
+    it 'validates and applies an action atomically for a thread-safe game' do
+      thread_safe_class = Class.new(Jedna::Game) { include ThreadSafeGame }
+      thread_safe_game = thread_safe_class.new('creator', 1, Jedna::NullNotifier.new)
+      thread_safe_game.add_player(Jedna::Player.new('Alice'))
+      thread_safe_game.add_player(Jedna::Player.new('Bob'))
+      thread_safe_game.start_game(nil, 'Alice')
+      alice = thread_safe_game.players.first
+      alice.hand.clear
+      alice.hand << Jedna::Card.new(:red, 5)
+      alice.hand << Jedna::Card.new(:green, 3)
+      thread_safe_game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 7))
+      thread_safe_executor = described_class.new(thread_safe_game)
+      original_serializer = Jedna::GameStateSerializer.new
+      serialization_started = Queue.new
+      release_serialization = Queue.new
+      serializer = Object.new
+      serializer.define_singleton_method(:serialize_for_current_player) do |current_game|
+        serialization_started << true
+        release_serialization.pop
+        original_serializer.serialize_for_current_player(current_game)
+      end
+      thread_safe_executor.instance_variable_set(:@serializer, serializer)
+      result = Queue.new
+      execution = Thread.new do
+        result << thread_safe_executor.execute('action' => 'play', 'card' => 'r5')
+      end
+      serialization_started.pop
+      competing_started = Queue.new
+      competing_action = Thread.new do
+        competing_started << true
+        thread_safe_game.pick_single
+      end
+      competing_started.pop
+
+      expect(competing_action.join(0.05)).to be_nil
+
+      release_serialization << true
+      execution.join
+      competing_action.join
+      expect(result.pop).to be_success
+      expect(thread_safe_game.top_card.to_s).to eq('r5')
+    end
   end
 end
 # rubocop:enable Metrics/BlockLength

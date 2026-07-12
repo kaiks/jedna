@@ -307,7 +307,8 @@ The executor accepts string- or symbol-keyed action hashes. It validates the
 current player, action availability, card, wild color, and double play before
 calling the game API. It returns an immutable `Jedna::ActionResult` with
 `success?`, `error?`, `code`, `message`, and `action`; expected protocol errors
-are results rather than exceptions.
+are results rather than exceptions. When the game includes `ThreadSafeGame`,
+validation and application run together inside the game's reentrant monitor.
 
 Games also expose `on_action_required` for event-driven hosts:
 

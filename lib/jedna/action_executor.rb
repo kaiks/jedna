@@ -16,6 +16,14 @@ module Jedna
     end
 
     def execute(action = nil, player: nil, **action_fields)
+      return @game.synchronize { execute_action(action, player, action_fields) } if @game.respond_to?(:synchronize)
+
+      execute_action(action, player, action_fields)
+    end
+
+    private
+
+    def execute_action(action, player, action_fields)
       action ||= action_fields unless action_fields.empty?
       validation = validate_request(action, player)
       return validation if validation
@@ -29,8 +37,6 @@ module Jedna
       send(ACTION_METHODS.fetch(action_name), action, current_player, state)
     end
 
-    private
-
     def execute_play(action, player, state)
       card_code = value(action, 'card')
       card = ProtocolCardLookup.find(player.hand, card_code)
@@ -41,30 +47,32 @@ module Jedna
 
       card.set_wild_color(wild_color) if card.wild?
       played = @game.player_card_play(player, card, double_play == true)
-      return failure('action_rejected', 'The game rejected the play', 'play') unless played
+      return ActionResult.failure('action_rejected', 'The game rejected the play', 'play') unless played
 
-      success('play')
+      ActionResult.success('play')
     end
 
     def execute_draw(*)
       @game.pick_single
-      success('draw')
+      ActionResult.success('draw')
     end
 
     def execute_pass(*)
       @game.turn_pass
-      success('pass')
+      ActionResult.success('pass')
     end
 
     def validate_request(action, player)
-      return failure('invalid_action', 'Action must be an object') unless action.is_a?(Hash)
-      return failure('game_not_started', 'The game is not started') unless @game.started?
+      return ActionResult.failure('invalid_action', 'Action must be an object') unless action.is_a?(Hash)
+      return ActionResult.failure('game_not_started', 'The game is not started') unless @game.started?
       if player && player != @game.players.first
-        return failure('not_current_player', 'The player is not the current player')
+        return ActionResult.failure('not_current_player', 'The player is not the current player')
       end
 
       action_name = value(action, 'action')
-      return failure('invalid_action', 'Action must be play, draw, or pass') unless ACTION_METHODS.key?(action_name)
+      unless ACTION_METHODS.key?(action_name)
+        return ActionResult.failure('invalid_action', 'Action must be play, draw, or pass')
+      end
 
       nil
     end
@@ -72,7 +80,7 @@ module Jedna
     def validate_availability(state, action_name)
       return if state[:available_actions].include?(action_name)
 
-      failure('action_unavailable', "#{action_name} is not available", action_name)
+      ActionResult.failure('action_unavailable', "#{action_name} is not available", action_name)
     end
 
     def validate_play(action, player, state, card)
@@ -84,23 +92,24 @@ module Jedna
     end
 
     def validate_card(state, card_code, card)
-      return failure('card_required', 'Play requires a card', 'play') unless card_code.is_a?(String)
+      return ActionResult.failure('card_required', 'Play requires a card', 'play') unless card_code.is_a?(String)
       unless state[:playable_cards].include?(card_code)
-        return failure('card_not_playable', "#{card_code} is not playable", 'play')
+        return ActionResult.failure('card_not_playable', "#{card_code} is not playable", 'play')
       end
-      return failure('card_not_in_hand', "#{card_code} is not in the player's hand", 'play') unless card
+      return ActionResult.failure('card_not_in_hand', "#{card_code} is not in the player's hand", 'play') unless card
 
       nil
     end
 
     def validate_wild_color(card, wild_color)
       if card.wild?
-        return failure('wild_color_required', 'Wild cards require wild_color', 'play') if wild_color.nil?
+        return ActionResult.failure('wild_color_required', 'Wild cards require wild_color', 'play') if wild_color.nil?
+
         unless WILD_COLORS.include?(wild_color.to_s)
-          return failure('invalid_wild_color', "Invalid wild color: #{wild_color}", 'play')
+          return ActionResult.failure('invalid_wild_color', "Invalid wild color: #{wild_color}", 'play')
         end
       elsif !wild_color.nil?
-        return failure('unexpected_wild_color', 'wild_color is only valid for wild cards', 'play')
+        return ActionResult.failure('unexpected_wild_color', 'wild_color is only valid for wild cards', 'play')
       end
 
       nil
@@ -108,7 +117,7 @@ module Jedna
 
     def validate_double_play(player, card, double_play)
       unless [nil, true, false].include?(double_play)
-        return failure('invalid_double_play', 'double_play must be true or false', 'play')
+        return ActionResult.failure('invalid_double_play', 'double_play must be true or false', 'play')
       end
 
       available = ProtocolCardLookup.double_play_available?(
@@ -118,19 +127,11 @@ module Jedna
       )
       return unless double_play && !available
 
-      failure('double_play_unavailable', 'A matching second card is not available', 'play')
+      ActionResult.failure('double_play_unavailable', 'A matching second card is not available', 'play')
     end
 
     def value(action, key)
       action[key] || action[key.to_sym]
-    end
-
-    def success(action)
-      ActionResult.new(success: true, code: 'ok', message: nil, action: action)
-    end
-
-    def failure(code, message, action = nil)
-      ActionResult.new(success: false, code: code, message: message, action: action)
     end
   end
 end
