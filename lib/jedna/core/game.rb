@@ -38,6 +38,7 @@ module Jedna
       @repository = repository || Jedna::NullRepository.new
       @on_game_ended = nil # Simple hook for game ended event
       @before_player_turn_hooks = [] # Hooks called before each player's turn
+      @on_action_required_hooks = [] # Hooks called whenever the current player must decide
       db_create_game unless @casual == 1
     end
 
@@ -53,6 +54,11 @@ module Jedna
     # Hook setter - allows external code to be notified before each player's turn
     def before_player_turn(&block)
       @before_player_turn_hooks << block
+    end
+
+    # Registers a hook called with game, current player, and the decision reason.
+    def on_action_required(&block)
+      @on_action_required_hooks << block
     end
 
     def start_game(stack = nil, first_player = nil)
@@ -152,6 +158,7 @@ module Jedna
       rescue StandardError => e
         debug "[next_turn] Error in before_player_turn hook: #{e.message}"
       end
+      emit_action_required(:turn_started)
     end
 
     def show_player_cards(player)
@@ -231,6 +238,7 @@ module Jedna
         @already_picked = true
         notify "#{@players[0]} draws a card."
         @picked_card = (give_cards_to_player @players[0], 1)[0]
+        emit_action_required(:card_drawn) if started?
       else
         notify "Sorry #{@players[0]}, you can't pick now."
       end
@@ -522,6 +530,16 @@ module Jedna
 
     def db_stop(player)
       @repository.record_game_stopped(@game_id, player)
+    end
+
+    private
+
+    def emit_action_required(reason)
+      @on_action_required_hooks.each do |hook|
+        hook.call(self, @players[0], reason)
+      rescue StandardError => e
+        debug "[action_required] Error in hook: #{e.message}"
+      end
     end
   end
 end
