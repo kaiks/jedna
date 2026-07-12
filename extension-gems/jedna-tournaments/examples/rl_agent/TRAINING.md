@@ -192,3 +192,46 @@ python3 -m rl_agent.eval_sb3 \
 
 Add `--stochastic` to sample actions. Do not select a checkpoint and report its
 final result on the same seeds; reserve a second seed range for final testing.
+
+### Selecting a long-run checkpoint
+
+Use `benchmark_checkpoints.py` after training has finished. It first reports
+the leader from the in-training log, then evaluates every numbered checkpoint
+against Crushing on a fresh 5,000-game seed range. It selects the held-out
+leader from that screen and validates it on a second fresh range against both
+Crushing and every other checkpoint.
+
+```bash
+cd examples
+python3 -m rl_agent.benchmark_checkpoints \
+  --checkpoint-dir ../checkpoints/overnight-dagger \
+  --games 5000 \
+  --report ../checkpoints/overnight-dagger/benchmark.json
+```
+
+The default examines every `checkpoint_<steps>_steps.zip` archive. For a quick
+triage run, use `--candidate-limit 5`; this retains the five highest ranked
+log-evaluated checkpoints. `--skip-head-to-head` performs only the Crusher
+screen. Do not run the full benchmark beside active training: both use CPU and
+the checkpoint directory is still being written.
+
+At a 50% win rate, 5,000 games give a 95% Wilson interval about +/- 1.4
+percentage points wide. That is a useful promotion bar, but it does not make a
+one-point advantage conclusive, especially when comparing many checkpoints.
+
+### Finalist round robin
+
+After reducing the field, use the separate home-and-away round robin. Its
+default finalists are the 6M, 17.5M, 18M, and 18.5M snapshots. Every finalist
+plays 20,000 games against Crushing, and every checkpoint pairing plays 20,000
+games split evenly between the two agent positions. The script atomically
+updates its report after every completed matchup; pass `--resume` after an
+interruption.
+
+```bash
+cd examples
+mise exec ruby@4.0.5 -- python3 -m rl_agent.finalist_round_robin \
+  --checkpoint-dir ../checkpoints/overnight-dagger \
+  --games-per-pair 20000 \
+  --report ../checkpoints/overnight-dagger/finalist_round_robin.json
+```
