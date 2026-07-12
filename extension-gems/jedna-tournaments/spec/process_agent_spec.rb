@@ -62,6 +62,21 @@ RSpec.describe JednaTournaments::ProcessAgent do
       expect(response).to eq({ 'action' => 'draw' })
     end
 
+    it 'includes the canonical protocol version in the request envelope' do
+      reflecting_agent = described_class.new("ECHO_REQUEST=1 #{echo_agent_path}")
+      reflecting_agent.start
+
+      response = reflecting_agent.request_action({ your_id: 'test' })
+
+      expect(response).to include(
+        'type' => 'request_action',
+        'protocol_version' => Jedna::GameStateSerializer::PROTOCOL_VERSION,
+        'state' => { 'your_id' => 'test' }
+      )
+    ensure
+      reflecting_agent&.stop
+    end
+
     it 'raises timeout error if agent does not respond' do
       # Use a non-responsive command
       slow_agent = described_class.new('ruby -e "sleep 10"')

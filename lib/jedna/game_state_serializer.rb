@@ -2,6 +2,8 @@
 
 module Jedna
   class GameStateSerializer
+    PROTOCOL_VERSION = 1
+
     def serialize_for_current_player(game)
       return nil unless game.started?
 
@@ -11,6 +13,7 @@ module Jedna
 
       {
         type: 'request_action',
+        protocol_version: PROTOCOL_VERSION,
         state: {
           your_id: current_player.identity.id,
           hand: serialize_hand(current_player.hand),

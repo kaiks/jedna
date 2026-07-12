@@ -55,6 +55,7 @@ module JednaTournaments
 
       request = {
         type: 'request_action',
+        protocol_version: Jedna::GameStateSerializer::PROTOCOL_VERSION,
         state: game_state
       }
 

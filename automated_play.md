@@ -19,6 +19,7 @@ When it's an agent's turn, the game sends a JSON object describing the current g
 ```json
 {
   "type": "request_action",
+  "protocol_version": 1,
   "state": {
     "your_id": "player1",
     "hand": ["r2", "b5", "wd4", "g7", "y1"],
@@ -40,6 +41,8 @@ When it's an agent's turn, the game sends a JSON object describing the current g
 #### State Fields
 
 - `type`: Always "request_action" for action requests
+- `protocol_version`: Integer version of the request envelope and canonical
+  state contract. The current version is `1`.
 - `state`: Object containing the game state
   - `your_id`: The agent's player ID
   - `hand`: Array of card codes in the agent's hand
@@ -49,9 +52,7 @@ When it's an agent's turn, the game sends a JSON object describing the current g
   - `already_picked`: Whether a card was already drawn this turn
   - `picked_card`: The card drawn this turn (if any)
   - `other_players`: Array of other players with their card counts
-  - `available_actions`: Action categories exposed in the current state. Check
-    `playable_cards` before choosing `play`; the current serializer can expose
-    `play` even when that list is empty.
+  - `available_actions`: Action categories exposed in the current state.
   - `playable_cards`: List of cards from hand that can be played now
 
 ### Agent Response (Agent → Game)
@@ -71,9 +72,7 @@ The agent must respond with a JSON object specifying the action:
 - `card`: The card code to play (must be from hand)
 - `wild_color`: Required only when playing wild cards ("red", "blue", "green", "yellow")
 - `double_play` (optional): Requests that an identical second card be played in
-  the same turn. The core API supports this only when the flag is supplied on
-  the original play; some example tournament runners do not currently forward
-  this option correctly.
+  the same turn. The flag must be supplied on the original play.
 
 #### Draw a Card
 
@@ -286,6 +285,44 @@ Basic testing approach:
 3. Read its responses from stdout
 4. Validate the responses match the expected format
 
+Canonical request fixtures are available in `spec/fixtures/protocol`. They
+cover a normal turn, a post-draw decision, and both war states. Integrations
+should use these fixtures for contract tests instead of duplicating sample
+payloads.
+
+## Embedding Automated Play
+
+Ruby hosts can apply one response with `Jedna::ActionExecutor`:
+
+```ruby
+executor = Jedna::ActionExecutor.new(game)
+result = executor.execute(action, player: game.players.first)
+
+unless result.success?
+  warn "#{result.code}: #{result.message}"
+end
+```
+
+The executor accepts string- or symbol-keyed action hashes. It validates the
+current player, action availability, card, wild color, and double play before
+calling the game API. It returns an immutable `Jedna::ActionResult` with
+`success?`, `error?`, `code`, `message`, and `action`; expected protocol errors
+are results rather than exceptions.
+
+Games also expose `on_action_required` for event-driven hosts:
+
+```ruby
+game.on_action_required do |current_game, current_player, reason|
+  queue << [current_game, current_player, reason]
+end
+```
+
+`reason` is `:turn_started` at the beginning of each turn and `:card_drawn`
+after a successful single-card draw. The latter event is the second decision
+point where the player must play the drawn card or pass. Hooks execute inline;
+thread-safe hosts should enqueue a snapshot and return immediately rather than
+performing agent I/O while the game monitor is held.
+
 ## Performance Considerations
 
 - Agents should respond within 5 seconds (configurable in tournaments)
@@ -304,6 +341,6 @@ Successful agents typically consider:
 
 ## Protocol Versioning
 
-Current protocol version: 1.0
+Current protocol version: 1
 
 Future versions will maintain backwards compatibility or provide migration guides.

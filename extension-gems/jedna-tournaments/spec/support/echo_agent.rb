@@ -20,6 +20,12 @@ loop do
   break if input.nil?
 
   data = JSON.parse(input)
+  if ENV['ECHO_REQUEST']
+    puts JSON.generate(data)
+    $stdout.flush
+    next
+  end
+
   response = responses[data['type']]
 
   if response == :exit

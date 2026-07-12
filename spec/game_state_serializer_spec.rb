@@ -41,6 +41,7 @@ RSpec.describe Jedna::GameStateSerializer do
         result = serializer.serialize_for_current_player(game)
 
         expect(result[:type]).to eq('request_action')
+        expect(result[:protocol_version]).to eq(1)
         expect(result[:state][:your_id]).to eq('player1')
         expect(result[:state][:game_state]).to eq('normal')
         expect(result[:state][:top_card]).to eq('r7')
