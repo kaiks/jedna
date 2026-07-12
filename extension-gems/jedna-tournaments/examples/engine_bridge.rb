@@ -88,87 +88,52 @@ class EngineBridge
   end
 
   def handle_python_turn(game, player)
-    state = @serializer.serialize_for_current_player(game)
-    safe_write(state.merge(player: 'agent1'))
+    action = request_python_action(game)
+    return recover_turn(game) unless action
 
-    action = read_python_action
-    return game.turn_pass unless action
+    result = execute_action(game, player, action)
+    return recover_turn(game) if result.error?
 
-    case action['action']
-    when 'play'
-      card = find_card_in_hand(player.hand, action['card'])
-      if card
-        card.set_wild_color(action['wild_color'].to_sym) if action['wild_color']
-        played = game.player_card_play(player, card, action['double_play'] == true)
-        recover_turn(game) unless played
-      else
-        recover_turn(game)
-      end
-    when 'draw'
-      game.pick_single
-      if game.started? && game.already_picked
-        # Ask again after draw if the drawn card is playable
-        new_state = @serializer.serialize_for_current_player(game)
-        safe_write(new_state.merge(player: 'agent1'))
-        follow = read_python_action
-        if follow && follow['action'] == 'play'
-          card = find_card_in_hand(player.hand, follow['card'])
-          if card
-            card.set_wild_color(follow['wild_color'].to_sym) if follow['wild_color']
-            played = game.player_card_play(player, card)
-            game.turn_pass if game.started? && !played
-          else
-            game.turn_pass
-          end
-        else
-          game.turn_pass
-        end
-      else
-        game.turn_pass
-      end
-    else
-      game.turn_pass
-    end
+    finish_draw(game, player, request_python_action(game)) if action['action'] == 'draw'
   end
 
   def handle_process_turn(game, player, agent)
     state = @serializer.serialize_for_current_player(game)
     action = agent.request_action(state[:state], timeout: TURN_TIMEOUT)
-    case action['action']
-    when 'play'
-      card = find_card_in_hand(player.hand, action['card'])
-      if card
-        card.set_wild_color(action['wild_color'].to_sym) if action['wild_color']
-        played = game.player_card_play(player, card, action['double_play'] == true)
-        recover_turn(game) unless played
-      else
-        recover_turn(game)
-      end
-    when 'draw'
-      game.pick_single
-      if game.started? && game.already_picked
-        new_state = @serializer.serialize_for_current_player(game)
-        follow = agent.request_action(new_state[:state], timeout: TURN_TIMEOUT)
-        if follow['action'] == 'play'
-          card = find_card_in_hand(player.hand, follow['card'])
-          if card
-            card.set_wild_color(follow['wild_color'].to_sym) if follow['wild_color']
-            played = game.player_card_play(player, card)
-            game.turn_pass if game.started? && !played
-          else
-            game.turn_pass
-          end
-        else
-          game.turn_pass
-        end
-      else
-        game.turn_pass
-      end
-    else
-      game.turn_pass
-    end
+    result = execute_action(game, player, action)
+    return recover_turn(game) if result.error?
+
+    finish_draw(game, player, request_process_action(game, agent)) if action['action'] == 'draw'
   rescue StandardError
     recover_turn(game)
+  end
+
+  def request_python_action(game)
+    return unless game.started?
+
+    state = @serializer.serialize_for_current_player(game)
+    safe_write(state.merge(player: 'agent1'))
+    read_python_action
+  end
+
+  def request_process_action(game, agent)
+    return unless game.started?
+    return unless game.already_picked
+
+    state = @serializer.serialize_for_current_player(game)
+    agent.request_action(state[:state], timeout: TURN_TIMEOUT)
+  end
+
+  def finish_draw(game, player, action)
+    return unless game.started?
+    return game.turn_pass unless game.already_picked && action
+
+    result = execute_action(game, player, action)
+    game.turn_pass if result.error? && game.started?
+  end
+
+  def execute_action(game, player, action)
+    Jedna::ActionExecutor.new(game).execute(action, player: player)
   end
 
   def recover_turn(game)
@@ -176,19 +141,6 @@ class EngineBridge
 
     game.pick_single unless game.already_picked
     game.turn_pass if game.started?
-  end
-
-  def find_card_in_hand(hand, card_string)
-    return nil unless card_string
-
-    if %w[w wd4].include?(card_string)
-      hand.find do |c|
-        (c.figure == 'wild' && card_string == 'w') ||
-          (c.figure == 'wild+4' && card_string == 'wd4')
-      end
-    else
-      hand.find { |c| c.to_s == card_string }
-    end
   end
 
   def safe_write(obj)
