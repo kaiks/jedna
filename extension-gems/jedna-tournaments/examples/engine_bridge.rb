@@ -89,7 +89,7 @@ class EngineBridge
 
   def handle_python_turn(game, player)
     state = @serializer.serialize_for_current_player(game)
-    safe_write(type: 'request_action', player: 'agent1', state: state[:state])
+    safe_write(state.merge(player: 'agent1'))
 
     action = read_python_action
     return game.turn_pass unless action
@@ -109,7 +109,7 @@ class EngineBridge
       if game.started? && game.already_picked
         # Ask again after draw if the drawn card is playable
         new_state = @serializer.serialize_for_current_player(game)
-        safe_write(type: 'request_action', player: 'agent1', state: new_state[:state])
+        safe_write(new_state.merge(player: 'agent1'))
         follow = read_python_action
         if follow && follow['action'] == 'play'
           card = find_card_in_hand(player.hand, follow['card'])
