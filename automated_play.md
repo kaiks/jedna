@@ -51,7 +51,8 @@ When it's an agent's turn, the game sends a JSON object describing the current g
   - `stacked_cards`: Number of cards stacked in war (must draw if passing)
   - `already_picked`: Whether a card was already drawn this turn
   - `picked_card`: The card drawn this turn (if any)
-  - `other_players`: Array of other players with their card counts
+  - `other_players`: Array of other players with their card counts, ordered from
+    next to act through the player reached by reversing direction
   - `available_actions`: Action categories exposed in the current state.
   - `playable_cards`: List of cards from hand that can be played now
 

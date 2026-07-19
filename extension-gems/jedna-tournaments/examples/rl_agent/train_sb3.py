@@ -23,6 +23,7 @@ from rl_agent.expert import (
     pretrain_policy,
 )
 from rl_agent.rl_env import JednaVsProcessEnv
+from rl_agent.table_sizes import parse_player_count_weights, parse_player_counts
 
 
 def mask_fn(env: JednaVsProcessEnv):
@@ -66,6 +67,14 @@ def parse_args():
     parser.add_argument("--timesteps", type=int, default=200_000)
     parser.add_argument("--model", default="/tmp/jedna_maskppo")
     parser.add_argument("--resume", help="Existing model to continue training")
+    parser.add_argument(
+        "--preserve-timestep-count",
+        action="store_true",
+        help=(
+            "Keep a resumed model's timestep counter; --timesteps remains the "
+            "number of additional steps"
+        ),
+    )
     parser.add_argument("--timeout", type=float, default=60.0)
     parser.add_argument(
         "--per-game-engine",
@@ -73,6 +82,20 @@ def parse_args():
         help="Disable the default persistent Ruby engine for compatibility with stateful opponents",
     )
     parser.add_argument("--envs", type=int, default=4)
+    parser.add_argument(
+        "--player-counts",
+        type=parse_player_counts,
+        default=parse_player_counts("2-10"),
+        help="Balanced per-episode table-size mixture, e.g. 2-10 or 2,4,6",
+    )
+    parser.add_argument(
+        "--player-count-weights",
+        type=parse_player_count_weights,
+        help=(
+            "Relative per-episode table-size weights, e.g. "
+            "2:5,3:1,4:1,5:1,6:1,7:1; overrides --player-counts"
+        ),
+    )
     parser.add_argument("--seed", type=int, default=12_345)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--reward-scale", type=float, default=0.05)
@@ -98,15 +121,30 @@ def parse_args():
     parser.add_argument("--checkpoint-dir")
     parser.add_argument("--checkpoint-every", type=int, default=50_000)
     parser.add_argument("--eval-freq", type=int, default=0)
-    parser.add_argument("--eval-episodes", type=int, default=200)
+    parser.add_argument(
+        "--eval-episodes",
+        type=int,
+        default=200,
+        help="Evaluation episodes per table size",
+    )
     parser.add_argument("--eval-opponent")
+    parser.add_argument(
+        "--eval-player-counts",
+        type=parse_player_counts,
+        help="Table sizes evaluated at each checkpoint; defaults to --player-counts",
+    )
     return parser.parse_args()
 
 
-def build_env(engine_path, opponent, args):
+def build_env(engine_path, opponent, args, player_counts=None):
+    fixed_player_count = player_counts is not None
     base = JednaVsProcessEnv(
         engine_path=engine_path,
         opponent_cmd=opponent,
+        player_counts=player_counts if fixed_player_count else args.player_counts,
+        player_count_weights=(
+            None if fixed_player_count else args.player_count_probabilities
+        ),
         max_seconds=args.timeout,
         reward_scale=args.reward_scale,
         persistent_engine=not args.per_game_engine,
@@ -114,17 +152,18 @@ def build_env(engine_path, opponent, args):
     return ActionMasker(base, mask_fn)
 
 
-def env_factory(engine_path, opponent, args):
+def env_factory(engine_path, opponent, args, player_counts=None):
     def make_env():
-        return build_env(engine_path, opponent, args)
+        return build_env(engine_path, opponent, args, player_counts)
 
     return make_env
 
 
 class MaskedEvalCallback(BaseCallback):
-    def __init__(self, make_env, frequency, episodes, best_path, seed):
+    def __init__(self, make_env, player_counts, frequency, episodes, best_path, seed):
         super().__init__()
         self.make_env = make_env
+        self.player_counts = player_counts
         self.frequency = frequency
         self.episodes = episodes
         self.best_path = best_path
@@ -136,31 +175,41 @@ class MaskedEvalCallback(BaseCallback):
         if self.frequency <= 0 or self.n_calls % callback_frequency:
             return True
 
-        env = self.make_env()
-        wins = 0
-        try:
-            for episode in range(self.episodes):
-                observation, info = env.reset(seed=self.seed + episode)
-                done = False
-                while not done:
-                    action, _ = self.model.predict(
-                        observation,
-                        action_masks=info["action_mask"],
-                        deterministic=True,
+        rates = []
+        for player_count in self.player_counts:
+            env = self.make_env(player_count)
+            wins = 0
+            try:
+                for episode in range(self.episodes):
+                    observation, info = env.reset(
+                        seed=self.seed + (player_count * 1_000_000) + episode
                     )
-                    action_index = action.item() if hasattr(action, "item") else action
-                    observation, _reward, terminated, truncated, info = env.step(
-                        int(action_index)
-                    )
-                    done = terminated or truncated
-                wins += int(info.get("winner") == "agent1")
-        finally:
-            env.close()
+                    done = False
+                    while not done:
+                        action, _ = self.model.predict(
+                            observation,
+                            action_masks=info["action_mask"],
+                            deterministic=True,
+                        )
+                        action_index = action.item() if hasattr(action, "item") else action
+                        observation, _reward, terminated, truncated, info = env.step(
+                            int(action_index)
+                        )
+                        done = terminated or truncated
+                    wins += int(info.get("winner") == "agent1")
+            finally:
+                env.close()
+            rate = wins / self.episodes
+            rates.append(rate)
+            print(
+                f"[Evaluation] steps={self.num_timesteps} players={player_count} "
+                f"wins={wins}/{self.episodes} rate={rate:.2%}"
+            )
 
-        rate = wins / self.episodes
+        rate = sum(rates) / len(rates)
         print(
             f"[Evaluation] steps={self.num_timesteps} "
-            f"wins={wins}/{self.episodes} rate={rate:.2%}"
+            f"macro_rate={rate:.2%} table_sizes={','.join(map(str, self.player_counts))}"
         )
         if rate > self.best_rate:
             self.best_rate = rate
@@ -209,9 +258,13 @@ def build_callbacks(engine_path, args):
         best_path = args.checkpoint_dir or os.path.dirname(os.path.abspath(args.model))
         os.makedirs(best_path, exist_ok=True)
         opponent = args.eval_opponent or args.opponent[-1]
+        player_counts = args.eval_player_counts or args.player_counts
         callbacks.append(
             MaskedEvalCallback(
-                env_factory(engine_path, opponent, args),
+                lambda player_count: build_env(
+                    engine_path, opponent, args, (player_count,)
+                ),
+                player_counts,
                 args.eval_freq,
                 args.eval_episodes,
                 best_path,
@@ -224,6 +277,15 @@ def build_callbacks(engine_path, args):
 
 def main():
     args = parse_args()
+    if args.player_count_weights:
+        args.player_counts = tuple(
+            count for count, _weight in args.player_count_weights
+        )
+        args.player_count_probabilities = tuple(
+            weight for _count, weight in args.player_count_weights
+        )
+    else:
+        args.player_count_probabilities = None
     try:
         beta_schedule = build_dagger_beta_schedule(
             args.dagger_rounds,
@@ -236,6 +298,8 @@ def main():
         raise SystemExit("--expert-steps must be positive when DAgger is enabled")
     if args.dagger_rounds > 0 and args.dagger_steps <= 0:
         raise SystemExit("--dagger-steps must be positive when DAgger is enabled")
+    if args.preserve_timestep_count and not args.resume:
+        raise SystemExit("--preserve-timestep-count requires --resume")
 
     engine_path = os.path.abspath(os.path.join(HERE, "..", "engine_bridge.rb"))
     factories = [
@@ -254,6 +318,8 @@ def main():
             expert_env = JednaVsProcessEnv(
                 engine_path,
                 expert_opponent,
+                player_counts=args.player_counts,
+                player_count_weights=args.player_count_probabilities,
                 max_seconds=args.timeout,
                 reward_scale=args.reward_scale,
             )
@@ -280,6 +346,8 @@ def main():
                 dagger_env = JednaVsProcessEnv(
                     engine_path,
                     expert_opponent,
+                    player_counts=args.player_counts,
+                    player_count_weights=args.player_count_probabilities,
                     max_seconds=args.timeout,
                     reward_scale=args.reward_scale,
                 )
@@ -317,6 +385,7 @@ def main():
                 total_timesteps=args.timesteps,
                 callback=build_callbacks(engine_path, args),
                 progress_bar=False,
+                reset_num_timesteps=not args.preserve_timestep_count,
             )
         model.save(args.model)
         print(f"Saved model to {args.model}.zip")

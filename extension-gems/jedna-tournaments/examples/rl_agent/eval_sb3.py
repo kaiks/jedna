@@ -20,6 +20,7 @@ if EXAMPLES_DIR not in sys.path:
     sys.path.insert(0, EXAMPLES_DIR)
 
 from rl_agent.rl_env import JednaVsProcessEnv
+from rl_agent.table_sizes import parse_player_counts
 
 
 def mask_fn(env: JednaVsProcessEnv):
@@ -48,6 +49,12 @@ def main():
     parser.add_argument("--timeout", type=float, default=60.0)
     parser.add_argument("--seed", type=int, default=1_000_000)
     parser.add_argument(
+        "--player-counts",
+        type=parse_player_counts,
+        default=parse_player_counts("2-10"),
+        help="Table sizes to evaluate, e.g. 2-10 or 2,4,6",
+    )
+    parser.add_argument(
         "--stochastic",
         action="store_true",
         help="Sample from the policy instead of choosing deterministic actions",
@@ -55,36 +62,51 @@ def main():
     args = parser.parse_args()
 
     engine_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "engine_bridge.rb"))
-    base_env = JednaVsProcessEnv(engine_path=engine_path, opponent_cmd=args.opponent, max_seconds=args.timeout)
-    env = ActionMasker(base_env, mask_fn)
-
     model = MaskablePPO.load(args.model)
 
-    wins = 0
-    total = 0
-    try:
-        for episode in range(args.episodes):
-            obs, info = env.reset(seed=args.seed + episode)
-            done = False
-            while not done:
-                mask = info.get("action_mask")
-                action, _ = model.predict(
-                    obs,
-                    action_masks=mask,
-                    deterministic=not args.stochastic,
+    rates = []
+    total_wins = 0
+    total_episodes = 0
+    for player_count in args.player_counts:
+        base_env = JednaVsProcessEnv(
+            engine_path=engine_path,
+            opponent_cmd=args.opponent,
+            player_counts=(player_count,),
+            max_seconds=args.timeout,
+        )
+        env = ActionMasker(base_env, mask_fn)
+        wins = 0
+        try:
+            for episode in range(args.episodes):
+                obs, info = env.reset(
+                    seed=args.seed + (player_count * 1_000_000) + episode
                 )
-                obs, reward, terminated, truncated, info = env.step(int(action))
-                done = terminated or truncated
-            total += 1
-            if info.get("winner") == "agent1":
-                wins += 1
-    finally:
-        env.close()
-    rate = 100.0 * wins / max(1, total)
-    low, high = wilson_interval(wins, total)
+                done = False
+                while not done:
+                    mask = info.get("action_mask")
+                    action, _ = model.predict(
+                        obs,
+                        action_masks=mask,
+                        deterministic=not args.stochastic,
+                    )
+                    obs, _reward, terminated, truncated, info = env.step(int(action))
+                    done = terminated or truncated
+                wins += int(info.get("winner") == "agent1")
+        finally:
+            env.close()
+        rate = wins / args.episodes
+        low, high = wilson_interval(wins, args.episodes)
+        rates.append(rate)
+        total_wins += wins
+        total_episodes += args.episodes
+        print(
+            f"Players={player_count} Episodes={args.episodes} Wins={wins} "
+            f"WinRate={rate:.2%} Wilson95={low:.2%}-{high:.2%}"
+        )
+
     print(
-        f"Episodes={total} Wins={wins} WinRate={rate:.2f}% "
-        f"Wilson95={low:.2%}-{high:.2%}"
+        f"MacroWinRate={sum(rates) / len(rates):.2%} "
+        f"TotalEpisodes={total_episodes} TotalWins={total_wins}"
     )
 
 

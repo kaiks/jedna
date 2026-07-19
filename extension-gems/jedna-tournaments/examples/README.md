@@ -105,13 +105,16 @@ encoding:
 - `engine_bridge.rb`: clean JSON bridge between Gymnasium and the game engine.
 
 The observation key `war_cards_to_draw` remains in the model input for
-checkpoint compatibility, but it is populated from the engine protocol's
-`stacked_cards` field.
+feature-name continuity, but it is populated from the engine protocol's
+`stacked_cards` field. The complete v3 observation space is not archive-
+compatible with earlier checkpoints.
 
-The current neural action/observation layout adds exact-card features and
-double-play actions, so checkpoints from the earlier aggregate layout must be
-retrained. See [rl_agent/TRAINING.md](rl_agent/TRAINING.md) for the rationale,
-expert-imitation warm start, and measured brief-run results.
+The v3 neural observation supports one shared policy for 2-10 players. It keeps
+nine turn-ordered, padded opponent hand counts plus a mask, total player count,
+and explicit next, second-next, and Reverse-target counts. The action layout is
+still the same 110 draw/pass/exact-card/double-card choices. Changing the input
+shape makes v1/v2 checkpoints incompatible; retrain them. See
+[rl_agent/TRAINING.md](rl_agent/TRAINING.md) for the rationale and curriculum.
 
 ## PPO workflow
 
@@ -126,22 +129,29 @@ bundle exec ruby run_single_game.rb \
 Run the Python agent tests:
 
 ```bash
-python3 -m unittest \
-  rl_agent.test_encoding \
-  rl_agent.test_expert \
-  rl_agent.test_persistent_env
+python3 -m unittest discover -s rl_agent -p 'test_*.py' -t .
 ```
 
-The trainer keeps one Ruby engine and opponent process alive for each vectorized
-environment. This avoids restarting both processes every episode while still
-resetting the game and seed. Use `--per-game-engine` only for an opponent that
-requires a fresh process for every game.
+The trainer keeps one Ruby engine and a prewarmed opponent process for every
+seat up to the configured maximum alive in each vectorized environment.
+Smaller tables leave extra seats idle instead of restarting them later. Table
+size is sampled uniformly per episode from `--player-counts` (default `2-10`). Use
+`--player-count-weights '2:5,3:1,4:1,5:1,6:1,7:1'` for relative sampling
+weights; when present, that mapping supplies both the table sizes and their
+probabilities. This avoids process restarts while retaining independent state
+for every seat. Use `--per-game-engine` only for an opponent that requires a
+fresh process for every game.
+
+When resuming into the same logical training schedule, add
+`--preserve-timestep-count`. Checkpoint names then retain the loaded model's
+step count while `--timesteps` specifies how many additional steps to run.
 
 Train against Simple while iterating quickly:
 
 ```bash
 python3 -m rl_agent.train_sb3 \
   --opponent './simple_agent.rb' \
+  --player-counts 2-10 \
   --timesteps 100000 \
   --envs 4 \
   --model /tmp/jedna_maskppo \
@@ -156,6 +166,7 @@ Then train or fine-tune against Crushing for a stronger curriculum:
 ```bash
 python3 -m rl_agent.train_sb3 \
   --opponent './crushing_agent.rb' \
+  --player-counts 2-10 \
   --timesteps 1000000 \
   --envs 4 \
   --model /tmp/jedna_maskppo-vs-crushing
@@ -167,11 +178,13 @@ Evaluate a model deterministically:
 python3 -m rl_agent.eval_sb3 \
   --opponent './crushing_agent.rb' \
   --model /tmp/jedna_maskppo-vs-crushing.zip \
+  --player-counts 2-10 \
   --episodes 1000
 ```
 
-Add `--stochastic` to measure sampled policy behavior. Report the mode, number
-of games, win count, starting-player policy, and seed policy with every result.
+`--episodes` is per table size; output includes each size and the macro-average
+win rate. Add `--stochastic` to measure sampled policy behavior. Report the
+mode, per-size game and win counts, starting-player policy, and seed policy.
 
 Use a trained PPO agent in a YAML tournament like this:
 

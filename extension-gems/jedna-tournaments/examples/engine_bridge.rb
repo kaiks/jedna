@@ -1,9 +1,8 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Engine bridge: runs a single Jedna game where agent1 is controlled via
-# stdin/stdout by a Python trainer, and agent2 is an external process agent
-# (command provided via ENV['OPPONENT_CMD']).
+# Engine bridge: runs Jedna games where agent1 is controlled via stdin/stdout
+# by a Python trainer and 1-9 seats use external process agents.
 
 require 'bundler/setup'
 require 'json'
@@ -15,32 +14,43 @@ srand(Integer(ENV['JEDNA_SEED'])) if ENV['JEDNA_SEED']
 # Runs the game engine for a Python-controlled player and process opponent.
 class EngineBridge
   TURN_TIMEOUT = 10.0
+  PLAYER_RANGE = (2..10)
 
   class Shutdown < StandardError; end
 
-  def initialize(opponent_cmd, persistent: false)
+  def initialize(opponent_cmd, persistent: false, player_count: 2, max_player_count: player_count)
     @opponent_cmd = opponent_cmd
     @persistent = persistent
+    @initial_player_count = validate_player_count(player_count)
+    @max_player_count = validate_player_count(max_player_count)
     @serializer = Jedna::GameStateSerializer.new
+    @opponents = {}
   end
 
   def run
-    opp = JednaTournaments::ProcessAgent.new(@opponent_cmd, 'Opponent')
-    opp.start
-    @persistent ? run_persistent(opp) : run_game(opp)
+    if @persistent
+      ensure_opponents(@max_player_count)
+      run_persistent
+    else
+      ensure_opponents(@initial_player_count)
+      run_game(@initial_player_count)
+    end
   rescue Shutdown
     nil
   ensure
-    stop_agent(opp)
+    stop_all_opponents
   end
 
   private
 
-  def run_persistent(opponent)
+  def run_persistent
     while (reset = next_reset)
       srand(Integer(reset['seed'])) if reset['seed']
-      opponent.notify(type: 'game_reset')
-      run_game(opponent)
+      player_count = validate_player_count(reset.fetch('player_count', @initial_player_count))
+      ensure_opponents(player_count)
+      (2..player_count).map { |index| @opponents.fetch("agent#{index}") }
+                       .each { |opponent| opponent.notify(type: 'game_reset') }
+      run_game(player_count)
     end
   end
 
@@ -54,22 +64,20 @@ class EngineBridge
     message
   end
 
-  def run_game(opponent)
+  def run_game(player_count)
     # Use silent notifier and null repository for speed/noise-free I/O
     game = Jedna::Game.new('engine_bridge', 1, Jedna::NullNotifier.new, Jedna::TextRenderer.new, Jedna::NullRepository.new)
 
-    p1 = Jedna::Player.new(Jedna::SimpleIdentity.new('agent1'))
-    p2 = Jedna::Player.new(Jedna::SimpleIdentity.new('agent2'))
-    game.add_player(p1)
-    game.add_player(p2)
+    player_count.times do |index|
+      player_id = "agent#{index + 1}"
+      game.add_player(Jedna::Player.new(Jedna::SimpleIdentity.new(player_id)))
+    end
 
     winner_id = nil
     scores = {}
 
     game.on_game_ended do
-      # The game keeps the winner at index 0, but compute explicitly to avoid relying on order.
-      winner_player = game.players.min_by { |pl| pl.hand.value }
-      winner_id = winner_player.identity.id
+      winner_id = game.players.first.identity.id
       game.players.each { |pl| scores[pl.identity.id] = pl.hand.value }
       card_counts = game.players.to_h { |player| [player.identity.id, player.hand.size] }
       safe_write(type: 'game_end', winner: winner_id, scores: scores, card_counts: card_counts)
@@ -82,7 +90,7 @@ class EngineBridge
       if current_player.identity.id == 'agent1'
         handle_python_turn(game, current_player)
       else
-        handle_process_turn(game, current_player, opponent)
+        handle_process_turn(game, current_player, @opponents.fetch(current_player.identity.id))
       end
     end
   end
@@ -171,6 +179,27 @@ class EngineBridge
   rescue StandardError
     nil
   end
+
+  def validate_player_count(value)
+    player_count = Integer(value)
+    return player_count if PLAYER_RANGE.cover?(player_count)
+
+    raise ArgumentError, "player_count must be between #{PLAYER_RANGE.begin} and #{PLAYER_RANGE.end}"
+  end
+
+  def ensure_opponents(player_count)
+    desired_ids = (2..player_count).map { |index| "agent#{index}" }
+    (desired_ids - @opponents.keys).each do |player_id|
+      opponent = JednaTournaments::ProcessAgent.new(@opponent_cmd, player_id)
+      opponent.start
+      @opponents[player_id] = opponent
+    end
+  end
+
+  def stop_all_opponents
+    @opponents.each_value { |opponent| stop_agent(opponent) }
+    @opponents.clear
+  end
 end
 
 opponent_cmd = ENV.fetch('OPPONENT_CMD', nil)
@@ -180,4 +209,11 @@ if opponent_cmd.nil? || opponent_cmd.empty?
 end
 
 persistent = ARGV.delete('--persistent')
-EngineBridge.new(opponent_cmd, persistent: persistent).run
+player_count = Integer(ENV.fetch('PLAYER_COUNT', 2))
+max_player_count = Integer(ENV.fetch('MAX_PLAYER_COUNT', player_count))
+EngineBridge.new(
+  opponent_cmd,
+  persistent: persistent,
+  player_count: player_count,
+  max_player_count: max_player_count
+).run

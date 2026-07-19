@@ -8,6 +8,8 @@ WILDS = ["w", "wd4"]
 TYPE_KEYS = ["numbers", "skips", "reverses", "draw2", "wild", "wd4"]
 COLOR_INDEX = {color: index for index, color in enumerate(COLORS)}
 FIGURE_INDEX = {figure: index for index, figure in enumerate(FIGURES)}
+MAX_PLAYERS = 10
+MAX_OPPONENTS = MAX_PLAYERS - 1
 
 
 def all_colored_cards() -> List[str]:
@@ -216,6 +218,14 @@ def pack_observation_for_model(state: Dict[str, Any]) -> Dict[str, Any]:
     """Pack protocol state into the fixed array-shaped Dict used by SB3."""
     raw = encode_observation(state)
     opponents = raw["opponent_counts"]
+    if len(opponents) > MAX_OPPONENTS:
+        raise ValueError(f"expected at most {MAX_OPPONENTS} opponents")
+    padded_opponents = opponents[:MAX_OPPONENTS] + [0] * (
+        MAX_OPPONENTS - len(opponents[:MAX_OPPONENTS])
+    )
+    opponent_mask = [1] * min(len(opponents), MAX_OPPONENTS) + [0] * (
+        MAX_OPPONENTS - min(len(opponents), MAX_OPPONENTS)
+    )
 
     return {
         "color_counts": [float(raw["color_counts"][color]) for color in COLORS],
@@ -223,7 +233,16 @@ def pack_observation_for_model(state: Dict[str, Any]) -> Dict[str, Any]:
         "top_color": [float(COLOR_INDEX.get(raw["top_color"], 0))],
         "top_figure": [float(FIGURE_INDEX.get(raw["top_figure"], 0))],
         "war_cards_to_draw": [float(raw["war_cards_to_draw"])],
-        "opponent_counts": [float(opponents[0] if opponents else 0)],
+        # other_players is serialized in active turn order: the first entry is
+        # next to act and the last entry is reached by a single Reverse.
+        "opponent_counts": [float(count) for count in padded_opponents],
+        "opponent_mask": [float(value) for value in opponent_mask],
+        "player_count": [float(max(len(opponents) + 1, 2))],
+        "next_opponent_count": [float(opponents[0] if opponents else 0)],
+        "second_next_opponent_count": [
+            float(opponents[1] if len(opponents) > 1 else 0)
+        ],
+        "reverse_target_count": [float(opponents[-1] if opponents else 0)],
         "opponent_min": [float(raw["opponent_min"])],
         "opponent_max": [float(raw["opponent_max"])],
         "hand_size": [float(raw["hand_size"])],

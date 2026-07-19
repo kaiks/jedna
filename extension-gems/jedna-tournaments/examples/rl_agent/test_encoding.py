@@ -4,6 +4,9 @@ from .encoding import ActionSpace, encode_action_mask, pack_observation_for_mode
 
 
 class ObservationEncodingTest(unittest.TestCase):
+    def test_action_space_remains_the_110_action_v2_layout(self):
+        self.assertEqual(ActionSpace().size(), 110)
+
     def test_packs_protocol_state_for_training_and_inference(self):
         observation = pack_observation_for_model(
             {
@@ -17,7 +20,12 @@ class ObservationEncodingTest(unittest.TestCase):
 
         self.assertEqual(observation["color_counts"], [2.0, 1.0, 0.0, 0.0])
         self.assertEqual(observation["war_cards_to_draw"], [6.0])
-        self.assertEqual(observation["opponent_counts"], [2.0])
+        self.assertEqual(observation["opponent_counts"], [2.0] + [0.0] * 8)
+        self.assertEqual(observation["opponent_mask"], [1.0] + [0.0] * 8)
+        self.assertEqual(observation["player_count"], [2.0])
+        self.assertEqual(observation["next_opponent_count"], [2.0])
+        self.assertEqual(observation["second_next_opponent_count"], [0.0])
+        self.assertEqual(observation["reverse_target_count"], [2.0])
         self.assertEqual(len(observation["figure_counts"]), 13)
         self.assertEqual(sum(observation["card_counts"]), 4.0)
         self.assertEqual(sum(observation["playable_cards"]), 2.0)
@@ -66,6 +74,27 @@ class ObservationEncodingTest(unittest.TestCase):
 
         self.assertEqual(observation["top_color"], [1.0])
         self.assertEqual(observation["top_card"][space.cards.index("wd4")], 1.0)
+
+    def test_packs_nine_opponents_in_turn_order_with_strategic_targets(self):
+        opponents = [
+            {"id": f"player{index + 2}", "card_count": index + 1}
+            for index in range(9)
+        ]
+
+        observation = pack_observation_for_model({"other_players": opponents})
+
+        self.assertEqual(observation["opponent_counts"], [float(i) for i in range(1, 10)])
+        self.assertEqual(observation["opponent_mask"], [1.0] * 9)
+        self.assertEqual(observation["player_count"], [10.0])
+        self.assertEqual(observation["next_opponent_count"], [1.0])
+        self.assertEqual(observation["second_next_opponent_count"], [2.0])
+        self.assertEqual(observation["reverse_target_count"], [9.0])
+
+    def test_rejects_protocol_states_above_the_supported_table_size(self):
+        opponents = [{"card_count": 1}] * 10
+
+        with self.assertRaisesRegex(ValueError, "at most 9 opponents"):
+            pack_observation_for_model({"other_players": opponents})
 
 
 if __name__ == "__main__":

@@ -14,22 +14,31 @@ program. The original loop had several concrete disadvantages:
 - Training started from random behavior against one fixed opponent.
 - Training and standalone inference used different observation shapes.
 
-The v2 loop fixes those issues. It adds exact 54-card hand, playable-card, and
+The v2 loop fixed those issues. It added exact 54-card hand, playable-card, and
 top-card vectors; active wild color, post-draw state, legal double-play actions,
 hand-progress reward shaping, deterministic engine seeds, mixed opponents, and
 a behavior-cloning warm start from any JSON-lines expert.
 
-The new observation and 110-action layout are intentionally incompatible with
-old PPO checkpoints. Retrain models created before this change.
+The v3 loop generalizes that policy to 2-10 players. Every observation contains
+nine opponent-count slots in active turn order, a padding mask, total player
+count, and explicit next, second-next, and Reverse-target counts. Reward
+bookkeeping follows opponent IDs rather than array positions and normalizes the
+opponent component by table size. The bridge owns one process per opponent seat
+and safely discards the rare game that ends before the learner receives its
+first decision.
+
+The 110-action layout is unchanged, but the v3 observation shape is
+intentionally incompatible with both v1 and v2 checkpoints. Retrain rather
+than resume those models.
 
 ## Engine lifecycle
 
-Each training environment keeps one Ruby engine and one opponent process alive
-across games. The bridge creates a new game for every seeded `reset` and sends
-the opponent a `game_reset` message, so the standard bundled agents remain
-stateless between episodes without paying process startup cost. Use
-`--per-game-engine` for a third-party opponent that cannot reset its own
-cross-game state.
+Each training environment keeps one Ruby engine and prewarms the opponent
+processes required by its largest configured table. The bridge creates a new
+game for every seeded `reset`, leaves seats outside a smaller table idle, and
+sends each active opponent a `game_reset` message. Processes are stopped only
+when the environment closes. Use `--per-game-engine` for a third-party opponent
+that cannot reset its own cross-game state.
 
 ## Recommended curriculum
 
@@ -43,38 +52,46 @@ python3 -m rl_agent.train_sb3 \
   --opponent './crushing_agent.rb' \
   --expert './crushing_agent.rb' \
   --expert-opponent './crushing_agent.rb' \
+  --player-counts 2-10 \
   --expert-steps 7500 \
   --bc-epochs 6 \
   --timesteps 0 \
   --envs 1 \
-  --model /tmp/jedna_rl_v2
+  --model /tmp/jedna_rl_v3
 ```
 
-This writes `/tmp/jedna_rl_v2_bc.zip`. Fine-tune it against a mixture of easy
+This writes `/tmp/jedna_rl_v3_bc.zip`. Fine-tune it against a mixture of easy
 and strong opponents:
 
 ```bash
 python3 -m rl_agent.train_sb3 \
   --opponent './simple_agent.rb' \
   --opponent './crushing_agent.rb' \
-  --resume /tmp/jedna_rl_v2_bc.zip \
+  --resume /tmp/jedna_rl_v3_bc.zip \
+  --player-counts 2-10 \
   --timesteps 250000 \
   --envs 8 \
   --n-steps 256 \
   --batch-size 256 \
   --ppo-epochs 5 \
   --reward-scale 0.05 \
-  --checkpoint-dir /tmp/jedna_rl_v2_checkpoints \
+  --checkpoint-dir /tmp/jedna_rl_v3_checkpoints \
   --checkpoint-every 25000 \
   --eval-freq 25000 \
   --eval-episodes 500 \
   --eval-opponent './crushing_agent.rb' \
-  --model /tmp/jedna_rl_v2_finetuned
+  --model /tmp/jedna_rl_v3_finetuned
 ```
 
 Use fewer Crushing workers if its chain search saturates the machine. The
 training command is trusted local configuration: expert and opponent strings
 are executed as shell commands.
+
+Table sizes are sampled uniformly per episode unless
+`--player-count-weights` supplies explicit relative weights such as
+`2:5,3:1,4:1,5:1,6:1,7:1`. In-training evaluation still reports every
+configured size and selects `best_model.zip` by the unweighted macro-average,
+so the training distribution does not bias checkpoint comparison.
 
 ### DAgger warm start
 
@@ -112,7 +129,39 @@ Without an explicit beta schedule, `--dagger-beta-start` is linearly annealed
 to zero. Beta is the probability of executing the expert action while still
 recording the expert label at every visited state.
 
+## Multiplayer v3 checkpoint from 2026-07-19
+
+The first end-to-end v3 run used 7,500 Crushing demonstrations, six
+behavior-cloning epochs, and 100,352 PPO steps across four environments. Each
+episode sampled a table size uniformly from 2 through 10; the PPO workers were
+split evenly between Simple and Crushing. The resulting ignored model archive
+is `../../models/jedna_multiplayer_v3.zip`. Its tracked
+`../../models/jedna_multiplayer_v3.json` manifest records the full training
+configuration, observation/action architecture, byte size, SHA-256 digest,
+seeds, and Wilson intervals.
+
+The following deterministic smoke evaluation used 25 held-out games per
+opponent and table size. These samples validate the complete 2-10-player path;
+their intervals are intentionally broad and are not a strength-promotion
+claim.
+
+| Players | vs Simple | vs Crushing |
+| ---: | ---: | ---: |
+| 2 | 11/25 (44%) | 11/25 (44%) |
+| 3 | 10/25 (40%) | 7/25 (28%) |
+| 4 | 5/25 (20%) | 3/25 (12%) |
+| 5 | 6/25 (24%) | 3/25 (12%) |
+| 6 | 5/25 (20%) | 1/25 (4%) |
+| 7 | 4/25 (16%) | 5/25 (20%) |
+| 8 | 6/25 (24%) | 1/25 (4%) |
+| 9 | 3/25 (12%) | 3/25 (12%) |
+| 10 | 2/25 (8%) | 1/25 (4%) |
+| Macro average | 23.11% | 15.56% |
+
 ## Brief-run result from 2026-07-10
+
+The results below are historical v2 two-player measurements. Their checkpoints
+cannot be loaded by the v3 environment.
 
 The development run used 7,500 Crushing-vs-Crushing expert decisions, six
 behavior-cloning epochs, and 16,384 PPO steps against Crushing. Evaluation used
@@ -185,13 +234,15 @@ interval:
 ```bash
 python3 -m rl_agent.eval_sb3 \
   --opponent './crushing_agent.rb' \
-  --model /tmp/jedna_rl_v2_finetuned.zip \
+  --model /tmp/jedna_rl_v3_finetuned.zip \
+  --player-counts 2-10 \
   --episodes 1000 \
   --seed 6000000
 ```
 
-Add `--stochastic` to sample actions. Do not select a checkpoint and report its
-final result on the same seeds; reserve a second seed range for final testing.
+`--episodes` applies to each table size. Add `--stochastic` to sample actions.
+Do not select a checkpoint and report its final result on the same seeds;
+reserve a second seed range for final testing.
 
 ### Selecting a long-run checkpoint
 
@@ -200,6 +251,9 @@ the leader from the in-training log, then evaluates every numbered checkpoint
 against Crushing on a fresh 5,000-game seed range. It selects the held-out
 leader from that screen and validates it on a second fresh range against both
 Crushing and every other checkpoint.
+
+This legacy round-robin tooling measures two-player strength only. Use
+`eval_sb3 --player-counts 2-10` as the multiplayer promotion gate.
 
 ```bash
 cd examples
