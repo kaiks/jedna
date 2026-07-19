@@ -17,7 +17,8 @@ module Jedna
                 :stacked_cards, :already_picked, :picked_card
     attr_accessor :notifier, :renderer, :repository
 
-    def initialize(creator, casual = 0, notifier = nil, renderer = nil, repository = nil)
+    def initialize(creator, casual = 0, notifier = nil, renderer = nil, repository = nil,
+                   two_player_reverse_acts_as_skip: false)
       @players = []
       @stacked_cards = 0
       @card_stack = nil
@@ -36,6 +37,7 @@ module Jedna
       @notifier = notifier || Jedna::ConsoleNotifier.new
       @renderer = renderer || Jedna::TextRenderer.new
       @repository = repository || Jedna::NullRepository.new
+      @two_player_reverse_acts_as_skip = two_player_reverse_acts_as_skip
       @on_game_ended = nil # Simple hook for game ended event
       @before_player_turn_hooks = [] # Hooks called before each player's turn
       @on_action_required_hooks = [] # Hooks called whenever the current player must decide
@@ -317,7 +319,11 @@ module Jedna
     def manage_order_by_card(card, pass)
       if (card.figure == 'reverse') && (pass == false)
         notify "Player order reversed#{@double_play ? ' twice' : ''}!"
-        @players.reverse! unless @double_play
+        if @two_player_reverse_acts_as_skip && @players.length == 2
+          @players.rotate!(@double_play ? 3 : 2)
+        else
+          @players.reverse! unless @double_play
+        end
       elsif (card.figure == 'skip') && (pass == false)
         if @double_play
           notify "#{@players[1]} and #{@players.fetch(2, @players[0])} were skipped!"

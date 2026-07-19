@@ -35,7 +35,9 @@ Special states that restrict what can be played:
 
 ### Action Cards
 - **Skip (S)**: Next player loses their turn
-- **Reverse (R)**: Reverses play direction (always reverses, even in 2-player games)
+- **Reverse (R)**: Reverses play direction. By default this also applies in a
+  2-player game; applications can enable `two_player_reverse_acts_as_skip` so
+  that playing Reverse immediately gives the same player another turn.
 - **Draw Two (+2)**: Next player must respond with +2/Reverse/WD4 or draw accumulated cards
 
 ### Wild Cards
@@ -63,6 +65,8 @@ Special states that restrict what can be played:
 ## Turn Order
 - Clockwise by default
 - Reverse cards change direction for all players
+- With `two_player_reverse_acts_as_skip` enabled, Reverse skips the opponent in
+  a 2-player game
 - Skip cards bypass next player
 - Double Skip bypasses two players
 

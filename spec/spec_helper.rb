@@ -37,11 +37,11 @@ end
 class TestJednaGame < Jedna::Game
   attr_reader :test_notifier
 
-  def initialize(creator, casual = 0)
+  def initialize(creator, casual = 0, **options)
     @test_notifier = TestNotifier.new
     renderer = Jedna::TextRenderer.new
     repository = Jedna::NullRepository.new
-    super(creator, casual, @test_notifier, renderer, repository)
+    super(creator, casual, @test_notifier, renderer, repository, **options)
   end
 
   def notifications

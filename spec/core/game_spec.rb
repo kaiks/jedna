@@ -373,6 +373,39 @@ RSpec.describe Jedna::Game do
         # After reverse and rotate, last player should be next
         expect(game.players[0]).not_to eq(alice)
       end
+
+      it 'keeps the current player when configured as a skip in a two-player game' do
+        two_player_game = TestJednaGame.new(
+          'Alice', 1, two_player_reverse_acts_as_skip: true
+        )
+        two_player_game.add_player(alice)
+        two_player_game.add_player(bob)
+        two_player_game.start_game
+        two_player_game.instance_variable_set(:@players, [alice, bob])
+        two_player_game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
+        reverse_card = Jedna::Card.new(:red, 'reverse')
+        alice.hand = Jedna::Hand.new([reverse_card, Jedna::Card.new(:blue, 5)])
+
+        two_player_game.player_card_play(alice, reverse_card)
+
+        expect(two_player_game.players[0]).to eq(alice)
+        expect(two_player_game.notifications).to include('Player order reversed!')
+      end
+
+      it 'preserves the legacy two-player behavior by default' do
+        two_player_game = TestJednaGame.new('Alice', 1)
+        two_player_game.add_player(alice)
+        two_player_game.add_player(bob)
+        two_player_game.start_game
+        two_player_game.instance_variable_set(:@players, [alice, bob])
+        two_player_game.instance_variable_set(:@top_card, Jedna::Card.new(:red, 3))
+        reverse_card = Jedna::Card.new(:red, 'reverse')
+        alice.hand = Jedna::Hand.new([reverse_card, Jedna::Card.new(:blue, 5)])
+
+        two_player_game.player_card_play(alice, reverse_card)
+
+        expect(two_player_game.players[0]).to eq(bob)
+      end
     end
 
     describe '+2 card' do
