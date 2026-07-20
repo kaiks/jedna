@@ -1,0 +1,71 @@
+{
+  "schema": "jedna-multiplayer-v3",
+  "created_at": "2026-07-19T18:32:26+02:00",
+  "model_file": "jedna_multiplayer_v3_20260719.zip",
+  "size_bytes": 3359227,
+  "sha256": "0b1d3a62605a2a4834cd758f0038d33140bd91087a28d99b3c84a959e601340f",
+  "policy": {
+    "algorithm": "MaskablePPO",
+    "type": "MultiInputPolicy",
+    "action_count": 110,
+    "activation": "ReLU",
+    "policy_layers": [256, 256],
+    "value_layers": [256, 256],
+    "opponent_slots": 9,
+    "supported_player_counts": [2, 3, 4, 5, 6, 7, 8, 9, 10]
+  },
+  "training": {
+    "seed": 12345,
+    "expert": "crushing_agent.rb",
+    "expert_opponent": "crushing_agent.rb",
+    "expert_steps": 7500,
+    "behavior_cloning_epochs": 6,
+    "ppo_requested_timesteps": 100000,
+    "ppo_actual_timesteps": 100352,
+    "parallel_environments": 4,
+    "rollout_steps_per_environment": 256,
+    "batch_size": 256,
+    "ppo_epochs": 5,
+    "reward_scale": 0.05,
+    "opponents": ["simple_agent.rb", "crushing_agent.rb"],
+    "table_size_sampling": "uniform_per_episode"
+  },
+  "evaluation": {
+    "deterministic": true,
+    "episodes_per_table_size": 25,
+    "simple": {
+      "seed": 2000000,
+      "macro_win_rate": 0.2311111111,
+      "total_wins": 52,
+      "total_episodes": 225,
+      "by_player_count": {
+        "2": {"wins": 11, "rate": 0.44, "wilson95": [0.2667, 0.6293]},
+        "3": {"wins": 10, "rate": 0.40, "wilson95": [0.2340, 0.5926]},
+        "4": {"wins": 5, "rate": 0.20, "wilson95": [0.0886, 0.3913]},
+        "5": {"wins": 6, "rate": 0.24, "wilson95": [0.1150, 0.4343]},
+        "6": {"wins": 5, "rate": 0.20, "wilson95": [0.0886, 0.3913]},
+        "7": {"wins": 4, "rate": 0.16, "wilson95": [0.0640, 0.3465]},
+        "8": {"wins": 6, "rate": 0.24, "wilson95": [0.1150, 0.4343]},
+        "9": {"wins": 3, "rate": 0.12, "wilson95": [0.0417, 0.2996]},
+        "10": {"wins": 2, "rate": 0.08, "wilson95": [0.0222, 0.2497]}
+      }
+    },
+    "crushing": {
+      "seed": 3000000,
+      "macro_win_rate": 0.1555555556,
+      "total_wins": 35,
+      "total_episodes": 225,
+      "by_player_count": {
+        "2": {"wins": 11, "rate": 0.44, "wilson95": [0.2667, 0.6293]},
+        "3": {"wins": 7, "rate": 0.28, "wilson95": [0.1428, 0.4758]},
+        "4": {"wins": 3, "rate": 0.12, "wilson95": [0.0417, 0.2996]},
+        "5": {"wins": 3, "rate": 0.12, "wilson95": [0.0417, 0.2996]},
+        "6": {"wins": 1, "rate": 0.04, "wilson95": [0.0071, 0.1954]},
+        "7": {"wins": 5, "rate": 0.20, "wilson95": [0.0886, 0.3913]},
+        "8": {"wins": 1, "rate": 0.04, "wilson95": [0.0071, 0.1954]},
+        "9": {"wins": 3, "rate": 0.12, "wilson95": [0.0417, 0.2996]},
+        "10": {"wins": 1, "rate": 0.04, "wilson95": [0.0071, 0.1954]}
+      }
+    }
+  }
+}

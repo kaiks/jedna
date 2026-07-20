@@ -1,5 +1,10 @@
 # Neural Agent Training
 
+For the current promoted model, cross-approach research history, claim limits,
+and prioritized next work, see the repository-wide
+[`../../../../BOT_RESEARCH.md`](../../../../BOT_RESEARCH.md). This document is
+the detailed training notebook and command reference.
+
 ## Why the original PPO lost to Crushing
 
 A neural network has enough capacity to represent a strong policy, but that
@@ -135,10 +140,11 @@ The first end-to-end v3 run used 7,500 Crushing demonstrations, six
 behavior-cloning epochs, and 100,352 PPO steps across four environments. Each
 episode sampled a table size uniformly from 2 through 10; the PPO workers were
 split evenly between Simple and Crushing. The resulting ignored model archive
-is `../../models/jedna_multiplayer_v3.zip`. Its tracked
-`../../models/jedna_multiplayer_v3.json` manifest records the full training
-configuration, observation/action architecture, byte size, SHA-256 digest,
-seeds, and Wilson intervals.
+is retained locally as `../../models/jedna_multiplayer_v3_20260719.zip`; its
+dated JSON manifest records the full training configuration,
+observation/action architecture, byte size, SHA-256 digest, seeds, and Wilson
+intervals. The undated canonical model path now names the latest promoted
+deployment candidate; see `BOT_RESEARCH.md` for its selection record.
 
 The following deterministic smoke evaluation used 25 held-out games per
 opponent and table size. These samples validate the complete 2-10-player path;
@@ -284,7 +290,7 @@ interruption.
 
 ```bash
 cd examples
-mise exec ruby@4.0.5 -- python3 -m rl_agent.finalist_round_robin \
+mise exec ruby@4.0.6 -- python3 -m rl_agent.finalist_round_robin \
   --checkpoint-dir ../checkpoints/overnight-dagger \
   --games-per-pair 20000 \
   --report ../checkpoints/overnight-dagger/finalist_round_robin.json

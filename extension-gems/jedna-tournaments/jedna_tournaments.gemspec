@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
                      'Supports multiple agent communication protocols and tournament formats.'
   spec.homepage = 'https://github.com/kaiks/jedna'
   spec.license = 'PolyForm-Noncommercial-1.0.0'
-  spec.required_ruby_version = '>= 3.2.0'
+  spec.required_ruby_version = '>= 4.0.6'
 
   spec.metadata['homepage_uri'] = spec.homepage
 

@@ -4,6 +4,9 @@ An extensible Ruby engine for an UNO-inspired card game with custom stacking,
 double-play, and instant-loss rules. See [game_rules.md](game_rules.md) for the
 implemented rules.
 
+For the current automated-player recommendation, benchmark record, rejected
+experiments, and research backlog, see [BOT_RESEARCH.md](BOT_RESEARCH.md).
+
 ## Installation
 
 Add this line to your application's Gemfile:

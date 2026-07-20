@@ -1,0 +1,140 @@
+{
+  "schema": "jedna-multiplayer-v3",
+  "promoted_at": "2026-07-20",
+  "model_file": "jedna_multiplayer_v3.zip",
+  "source_checkpoint": "../checkpoints/weighted-crusher-10m-retained-pool/checkpoint_9750000_steps.zip",
+  "size_bytes": 3359191,
+  "sha256": "716e687a637632e286e0050b1e013ded46af95033bf5a45901163cc0c141aa15",
+  "status": "best-observed-2-to-4-player-candidate",
+  "policy": {
+    "algorithm": "MaskablePPO",
+    "type": "MultiInputPolicy",
+    "inference": "deterministic",
+    "action_count": 110,
+    "activation": "ReLU",
+    "policy_layers": [256, 256],
+    "value_layers": [256, 256],
+    "opponent_slots": 9,
+    "supported_player_counts": [2, 3, 4, 5, 6, 7, 8, 9, 10],
+    "strength_claim_player_counts": [2, 3, 4]
+  },
+  "training": {
+    "seed": 12345,
+    "resume_checkpoint": "user-supplied PREVIOUS; path was not captured in training.log",
+    "opponents": ["crushing_agent.rb"],
+    "requested_timesteps": 10000000,
+    "selected_checkpoint_timesteps": 9750000,
+    "parallel_environments": 4,
+    "rollout_steps_per_environment": 512,
+    "batch_size": 256,
+    "ppo_epochs": 5,
+    "gamma": 0.995,
+    "entropy_coefficient": 0.01,
+    "reward_scale": 0.05,
+    "checkpoint_every": 250000,
+    "player_count_weights": {
+      "2": 5,
+      "3": 1,
+      "4": 1,
+      "5": 1,
+      "6": 1,
+      "7": 1
+    },
+    "in_training_evaluation": false
+  },
+  "selection": {
+    "screen": {
+      "seed": 20000000,
+      "candidate_count": 41,
+      "episodes_per_player_count": 50,
+      "player_counts": [2, 3, 4, 5, 6, 7]
+    },
+    "finalists": {
+      "seed": 30000000,
+      "episodes_per_player_count": 4000,
+      "player_counts": [2, 3, 4],
+      "metric": "unweighted macro win rate against Crushing",
+      "results": [
+        {
+          "checkpoint": "checkpoint_9750000_steps.zip",
+          "wins": 4677,
+          "episodes": 12000,
+          "macro_win_rate": 0.38975,
+          "by_player_count": {
+            "2": {"wins": 2178, "episodes": 4000, "rate": 0.5445},
+            "3": {"wins": 1415, "episodes": 4000, "rate": 0.35375},
+            "4": {"wins": 1084, "episodes": 4000, "rate": 0.271}
+          }
+        },
+        {
+          "checkpoint": "checkpoint_10000000_steps.zip",
+          "wins": 4635,
+          "episodes": 12000,
+          "macro_win_rate": 0.38625
+        },
+        {
+          "checkpoint": "final_10m.zip",
+          "timesteps": 10000672,
+          "wins": 4612,
+          "episodes": 12000,
+          "macro_win_rate": 0.3843333333
+        },
+        {
+          "checkpoint": "checkpoint_2000000_steps.zip",
+          "wins": 4549,
+          "episodes": 12000,
+          "macro_win_rate": 0.3790833333
+        },
+        {
+          "checkpoint": "checkpoint_6500000_steps.zip",
+          "wins": 4511,
+          "episodes": 12000,
+          "macro_win_rate": 0.3759166667
+        },
+        {
+          "checkpoint": "checkpoint_3500000_steps.zip",
+          "wins": 4474,
+          "episodes": 12000,
+          "macro_win_rate": 0.3728333333
+        }
+      ],
+      "conclusion": "9.75M was best observed but not statistically distinguishable from numbered or final 10M"
+    },
+    "confirmation": {
+      "seed": 40000000,
+      "episodes_per_player_count": 4000,
+      "player_counts": [2, 3, 4],
+      "status": "complete",
+      "wins": 4669,
+      "episodes": 12000,
+      "macro_win_rate": 0.3890833333,
+      "aggregate_wilson_95": [0.3804, 0.3978],
+      "by_player_count": {
+        "2": {
+          "wins": 2186,
+          "episodes": 4000,
+          "rate": 0.5465,
+          "wilson_95": [0.5310, 0.5619]
+        },
+        "3": {
+          "wins": 1407,
+          "episodes": 4000,
+          "rate": 0.35175,
+          "wilson_95": [0.3371, 0.3667]
+        },
+        "4": {
+          "wins": 1076,
+          "episodes": 4000,
+          "rate": 0.269,
+          "wilson_95": [0.2555, 0.2830]
+        }
+      }
+    }
+  },
+  "previous_model": {
+    "file": "jedna_multiplayer_v3_20260719.zip",
+    "manifest": "jedna_multiplayer_v3_20260719.json",
+    "sha256": "0b1d3a62605a2a4834cd758f0038d33140bd91087a28d99b3c84a959e601340f"
+  },
+  "research_record": "../../../BOT_RESEARCH.md"
+}

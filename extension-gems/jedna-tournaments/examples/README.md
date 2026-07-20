@@ -104,6 +104,11 @@ encoding:
 - `rl_agent/TRAINING.md`: improved curriculum, reproducible commands, and results.
 - `engine_bridge.rb`: clean JSON bridge between Gymnasium and the game engine.
 
+The repository-wide current recommendation and research decision record live
+in [`../../../BOT_RESEARCH.md`](../../../BOT_RESEARCH.md). This README describes
+the available agents; `rl_agent/TRAINING.md` retains the detailed training
+commands and historical tables.
+
 The observation key `war_cards_to_draw` remains in the model input for
 feature-name continuity, but it is populated from the engine protocol's
 `stacked_cards` field. The complete v3 observation space is not archive-
