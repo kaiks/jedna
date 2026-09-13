@@ -71,7 +71,7 @@ RSpec.describe 'Jedna::Repository' do
   end
 
   # Mock repository for testing game integration
-  class MockRepository
+  mock_repository_class = Class.new do
     include Jedna::Repository
 
     attr_reader :games, :cards, :actions, :players
@@ -163,8 +163,8 @@ RSpec.describe 'Jedna::Repository' do
     end
   end
 
-  describe MockRepository do
-    let(:repository) { MockRepository.new }
+  describe mock_repository_class do
+    let(:repository) { described_class.new }
 
     it 'tracks game lifecycle' do
       # Create game

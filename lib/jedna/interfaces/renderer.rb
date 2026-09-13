@@ -40,7 +40,8 @@ module Jedna
     end
 
     def render_game_state(state)
-      "Game state: #{state[:status]} | Top card: #{render_card(state[:top_card])} | Current player: #{state[:current_player]}"
+      "Game state: #{state[:status]} | Top card: #{render_card(state[:top_card])} | " \
+        "Current player: #{state[:current_player]}"
     end
 
     def render_player_order(players)

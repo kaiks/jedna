@@ -33,6 +33,7 @@ module Jedna
     COLORS[rand 4]
   end
 
+  # A physical card with value-based equality and a mutable Wild color selection.
   class Card
     attr_reader :color, :figure
     attr_accessor :visited, :debug
@@ -196,7 +197,8 @@ module Jedna
     end
 
     def plays_after?(card)
-      (@color == :wild) || (card.color == :wild) || card.figure == @figure || card.color == @color || special_valid_card?
+      (@color == :wild) || (card.color == :wild) || card.figure == @figure ||
+        card.color == @color || special_valid_card?
     end
 
     def is_regular?

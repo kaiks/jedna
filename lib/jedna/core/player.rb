@@ -3,6 +3,7 @@
 require_relative '../interfaces/player_identity'
 
 module Jedna
+  # A participant's identity and hand; equality follows identity matching.
   class Player
     attr_accessor :hand
     attr_reader :identity

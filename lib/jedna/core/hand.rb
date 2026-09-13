@@ -3,6 +3,7 @@
 require_relative 'card'
 
 module Jedna
+  # An ordered card collection with scoring, lookup, and physical-card removal.
   class Hand < Array
     def <<(cards)
       push(cards)
@@ -33,8 +34,8 @@ module Jedna
       each(&:unset_wild_color)
     end
 
-    def add_random(n)
-      n.times do
+    def add_random(count)
+      count.times do
         color_index = rand(4)
         figure_index = rand(15)
 

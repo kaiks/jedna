@@ -9,13 +9,8 @@ AllCops:
     - 'results_*/**/*'
     - 'parallel_results/**/*'
 
-# Allow slightly longer methods for tournament logic
-Metrics/MethodLength:
-  Max: 15
-
-# Allow larger classes for tournament runners
+# Keep the shared class limit, with exceptions for standalone test/strategy code.
 Metrics/ClassLength:
-  Max: 150
   Exclude:
     - 'test_*.rb'
     - 'crushing_agent/baseline_strategy.rb'

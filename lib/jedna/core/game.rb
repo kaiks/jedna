@@ -193,18 +193,18 @@ module Jedna
       end
     end
 
-    def deal_cards_to_player(p)
+    def deal_cards_to_player(player)
       return false unless started?
 
-      p.hand << @card_stack.pick(7)
-      p.hand.each do |card|
-        db_save_card card, p.identity.id, 1
+      player.hand << @card_stack.pick(7)
+      player.hand.each do |card|
+        db_save_card card, player.identity.id, 1
       end
-      p.hand.sort! { |a, b| a.to_s <=> b.to_s }
+      player.hand.sort! { |a, b| a.to_s <=> b.to_s }
     end
 
-    def check_for_empty_stack(n = 0)
-      return unless @card_stack.length <= n
+    def check_for_empty_stack(count = 0)
+      return unless @card_stack.length <= count
 
       notify 'Reshuffling discard pile.'
       top_discard = @played_cards.pop
@@ -214,25 +214,25 @@ module Jedna
       @card_stack.shuffle!
     end
 
-    def give_cards_to_player(p, n, game_ending: false)
+    def give_cards_to_player(player, count, game_ending: false)
       return CardStack.new unless started? || (game_ending && @card_stack && !finished?)
 
-      check_for_empty_stack(n)
+      check_for_empty_stack(count)
       @already_picked = true
-      picked = @card_stack.pick(n)
+      picked = @card_stack.pick(count)
       picked.each do |card|
-        db_save_card card, p.identity.id, 1
+        db_save_card card, player.identity.id, 1
       end
 
-      notify_player(p, "You draw #{n} card#{n > 1 ? 's' : ''}: #{@renderer.render_hand(picked)}")
-      p.hand << picked
+      notify_player(player, "You draw #{count} card#{count > 1 ? 's' : ''}: #{@renderer.render_hand(picked)}")
+      player.hand << picked
 
-      p.hand.sort! { |a, b| a.to_s <=> b.to_s }
+      player.hand.sort! { |a, b| a.to_s <=> b.to_s }
 
       unless game_ending
         # Check for instant loss condition after drawing cards
-        if p.hand.size > 35
-          finish_game_with_instant_loss(p)
+        if player.hand.size > 35
+          finish_game_with_instant_loss(player)
           return picked
         end
 
@@ -280,26 +280,26 @@ module Jedna
       @played_cards << card
     end
 
-    def notify_player_turn(p)
-      notify "Hey #{p} it's your turn!"
+    def notify_player_turn(player)
+      notify "Hey #{player} it's your turn!"
     end
 
-    def add_player(p)
+    def add_player(player)
       if @locked == false
-        @players.push p
+        @players.push player
         @players.shuffle!
-        db_player_joins p.identity.id unless @casual == 1
-        notify "#{p} joins the game"
+        db_player_joins player.identity.id unless @casual == 1
+        notify "#{player} joins the game"
       else
         notify "Sorry, it's not possible to join this game anymore."
       end
     end
 
-    def remove_player(p)
-      return false unless @players.include?(p)
+    def remove_player(player)
+      return false unless @players.include?(player)
 
-      @players.delete p
-      stop_game(p.identity.id) if @players.empty? || (started? && @players.length < 2)
+      @players.delete player
+      stop_game(player.identity.id) if @players.empty? || (started? && @players.length < 2)
     end
 
     def stop_game(player_id)
@@ -330,8 +330,8 @@ module Jedna
       @notifier.notify_game(text)
     end
 
-    def notify_player(p, text)
-      @notifier.notify_player(p.identity.id, text)
+    def notify_player(player, text)
+      @notifier.notify_player(player.identity.id, text)
     end
 
     def debug(text)
@@ -341,7 +341,6 @@ module Jedna
     def playable_now?(card)
       return false unless started? && card.is_a?(Card)
 
-      # debug "[playable_now?] Checking if card #{card} is playable. Top card: #{@top_card}, Game state: #{@game_state}"
       return false unless card.plays_after?(@top_card)
 
       if @game_state > 1
@@ -349,7 +348,6 @@ module Jedna
 
         return false if (@game_state == 3) && (card.figure != 'reverse') && !card.special_card?
       end
-      # debug "[playable_now?] Card #{card} is playable. All checks passed. Top card: #{@top_card}, Game state: #{@game_state}"
       true
     end
 
@@ -372,7 +370,8 @@ module Jedna
       else
         @players.rotate!
       end
-      debug "[manage_order_by_card] Card: #{card}, Pass: #{pass}, Double play: #{@double_play}, Players: #{@players.map(&:to_s)}"
+      debug "[manage_order_by_card] Card: #{card}, Pass: #{pass}, " \
+            "Double play: #{@double_play}, Players: #{@players.map(&:to_s)}"
       @double_play = false
     end
 

@@ -4,6 +4,7 @@ require_relative 'card'
 require_relative 'hand'
 
 module Jedna
+  # An ordered deck that builds the standard card set and draws from the front.
   class CardStack < Hand
     def create_discard_pile
       @discard_pile = Hand.new
@@ -27,9 +28,9 @@ module Jedna
 
     # shuffle!
 
-    def pick(n)
-      to_return = CardStack.new(first(n))
-      shift(n)
+    def pick(count)
+      to_return = CardStack.new(first(count))
+      shift(count)
       to_return
     end
   end

@@ -1,0 +1,80 @@
+# Temporary RuboCop baseline: 50 remaining findings after the easy cleanup.
+# Generated from the root JSON report using RuboCop 1.88.2.
+# Remove each cop/file exclusion as its findings are fixed.
+# Exclusions cover the whole file for that cop, including newly added code;
+# they are deferred work, not evidence that the underlying issues are resolved.
+# Regenerate from the repository root (review the diff for newly deferred work):
+#   mise exec -- bundle exec rubocop --auto-gen-config --auto-gen-only-exclude \
+#     --no-exclude-limit --no-auto-gen-timestamp --no-auto-gen-enforced-style
+
+# Offense count: 11
+# TODO: Extract cohesive lifecycle/protocol operations; keep current complexity limits.
+Metrics/AbcSize:
+  Exclude:
+    - 'extension-gems/jedna-tournaments/examples/engine_bridge.rb'
+    - 'extension-gems/jedna-tournaments/lib/jedna_tournaments/process_agent.rb'
+    - 'lib/jedna/action_executor.rb'
+    - 'lib/jedna/core/game.rb'
+    - 'lib/jedna/game_state_serializer.rb'
+
+# Offense count: 1
+# TODO: Split Game responsibilities only after architecture approval.
+Metrics/ClassLength:
+  Exclude:
+    - 'lib/jedna/core/game.rb'
+
+# Offense count: 5
+# TODO: Simplify control flow while preserving gameplay and process-cleanup behavior.
+Metrics/CyclomaticComplexity:
+  Exclude:
+    - 'extension-gems/jedna-tournaments/lib/jedna_tournaments/process_agent.rb'
+    - 'lib/jedna/core/game.rb'
+
+# Offense count: 10
+# TODO: Separate setup, validation, and execution where that improves cohesion.
+Metrics/MethodLength:
+  Exclude:
+    - 'extension-gems/jedna-tournaments/examples/engine_bridge.rb'
+    - 'extension-gems/jedna-tournaments/lib/jedna_tournaments/process_agent.rb'
+    - 'lib/jedna/core/game.rb'
+
+# Offense count: 6
+# TODO: Coordinate constructor/repository API changes with compatibility for callers.
+Metrics/ParameterLists:
+  Exclude:
+    - 'lib/jedna/core/game.rb'
+    - 'lib/jedna/interfaces/repository.rb'
+    - 'spec/interfaces/repository_spec.rb'
+
+# Offense count: 4
+# TODO: Flatten nested decisions alongside the cyclomatic-complexity cleanup.
+Metrics/PerceivedComplexity:
+  Exclude:
+    - 'lib/jedna/core/game.rb'
+
+# Offense count: 1
+# TODO: Preserve the existing card API until a compatible naming change is introduced.
+Naming/AccessorMethodName:
+  Exclude:
+    - 'lib/jedna/core/card.rb'
+
+# Offense count: 3
+# TODO: Introduce idiomatic predicates with compatibility aliases for existing callers.
+Naming/PredicatePrefix:
+  Exclude:
+    - 'lib/jedna/core/card.rb'
+
+# Offense count: 2
+# TODO: Separate example strategies/runners from their executable wrappers.
+Style/OneClassPerFile:
+  Exclude:
+    - 'extension-gems/jedna-tournaments/examples/crushing_agent.rb'
+    - 'extension-gems/jedna-tournaments/examples/tournament_runner.rb'
+
+# Offense count: 7
+# TODO: Migrate positional booleans with compatibility for public APIs and adapters.
+Style/OptionalBooleanParameter:
+  Exclude:
+    - 'lib/jedna/core/game.rb'
+    - 'lib/jedna/interfaces/repository.rb'
+    - 'spec/interfaces/repository_spec.rb'

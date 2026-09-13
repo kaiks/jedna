@@ -2,3 +2,10 @@ inherit_from: ../../../.rubocop.yml
 
 Metrics/BlockLength:
   Enabled: false
+
+# Card names such as red_5 and draw2_1 are useful test labels.
+Naming/VariableNumber:
+  Enabled: false
+
+Style/Documentation:
+  Enabled: false
