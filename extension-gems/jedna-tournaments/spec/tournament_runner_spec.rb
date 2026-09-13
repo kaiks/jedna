@@ -27,4 +27,21 @@ RSpec.describe ConfiguredTournamentRunner do
       expect(results.values.sum).to eq(4)
     end
   end
+
+  it 'propagates engine errors instead of silently omitting a game' do
+    config = { 'agents' => { 'A' => 'a', 'B' => 'b' }, 'output' => { 'stdout' => false } }
+    arena = instance_double(ArenaGame)
+    allow(ArenaGame).to receive(:new).and_return(arena)
+    allow(arena).to receive(:play).and_raise('engine defect')
+
+    Tempfile.create(['arena', '.yaml']) do |file|
+      file.write(YAML.dump(config))
+      file.flush
+      runner = described_class.new(file.path)
+
+      expect { runner.run }.to raise_error(RuntimeError, 'engine defect')
+      expect(runner.results.values.sum).to eq(0)
+      expect(runner.outcomes).to be_empty
+    end
+  end
 end

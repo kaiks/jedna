@@ -31,7 +31,12 @@ from rl_agent.rl_env import JednaVsProcessEnv
 
 EVALUATION_PATTERN = re.compile(
     r"\[Evaluation\]\s+steps=(?P<steps>\d+)\s+"
+    r"(?:players=(?P<players>\d+)\s+)?"
     r"wins=(?P<wins>\d+)/(?P<games>\d+)\s+rate=(?P<rate>[\d.]+)%"
+)
+MACRO_PATTERN = re.compile(
+    r"\[Evaluation\]\s+steps=(?P<steps>\d+)\s+"
+    r"macro_rate=[\d.]+%\s+table_sizes=(?P<tables>\d+(?:,\d+)*)"
 )
 CHECKPOINT_PATTERN = re.compile(r"checkpoint_(?P<steps>\d+)_steps\.zip$")
 
@@ -41,9 +46,12 @@ class TrainingEvaluation:
     steps: int
     wins: int
     games: int
+    table_results: tuple[tuple[int, int, int], ...] = ()
 
     @property
     def rate(self) -> float:
+        if self.table_results:
+            return sum(wins / games for _players, wins, games in self.table_results) / len(self.table_results)
         return self.wins / self.games
 
 
@@ -77,16 +85,42 @@ def mask_fn(env: JednaVsProcessEnv):
 
 
 def parse_training_evaluations(log_text: str) -> list[TrainingEvaluation]:
-    """Return the last reported evaluation for each training step."""
+    """Read legacy results or complete multiplayer evaluations, ranked by macro rate.
+
+    The multiplayer summary commits the preceding per-table counts. An
+    interrupted evaluation cannot replace a previous complete evaluation.
+    """
     by_step = {}
-    for match in EVALUATION_PATTERN.finditer(log_text):
+    pending = {}
+    for line in log_text.splitlines():
+        summary = MACRO_PATTERN.search(line)
+        if summary:
+            steps = int(summary.group("steps"))
+            tables = pending.pop(steps, {})
+            expected = {int(value) for value in summary.group("tables").split(",")}
+            if set(tables) == expected:
+                results = tuple((players, *tables[players]) for players in sorted(expected))
+                by_step[steps] = TrainingEvaluation(
+                    steps,
+                    sum(wins for _players, wins, _games in results),
+                    sum(games for _players, _wins, games in results),
+                    results,
+                )
+            continue
+        match = EVALUATION_PATTERN.search(line)
+        if not match:
+            continue
         steps = int(match.group("steps"))
         games = int(match.group("games"))
         if games == 0:
             continue
+        wins = int(match.group("wins"))
+        if match.group("players"):
+            pending.setdefault(steps, {})[int(match.group("players"))] = (wins, games)
+            continue
         by_step[steps] = TrainingEvaluation(
             steps=steps,
-            wins=int(match.group("wins")),
+            wins=wins,
             games=games,
         )
     return [by_step[step] for step in sorted(by_step)]
@@ -396,7 +430,8 @@ def main():
     print(
         "Training-log leader: "
         f"{checkpoint_display(log_leader)} with "
-        f"{log_evaluation.wins}/{log_evaluation.games} ({log_evaluation.rate:.2%})"
+        f"{log_evaluation.wins}/{log_evaluation.games} "
+        f"({'macro ' if log_evaluation.table_results else ''}rate={log_evaluation.rate:.2%})"
     )
     print(
         f"Screening {len(candidates)} checkpoints against Crusher with "

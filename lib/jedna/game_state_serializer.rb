@@ -1,10 +1,15 @@
 # frozen_string_literal: true
 
 module Jedna
+  # Formats detached protocol snapshots, synchronized when the game supports it.
   class GameStateSerializer
     PROTOCOL_VERSION = 1
 
     def serialize_for_current_player(game)
+      with_game_lock(game) { current_player_snapshot(game) }
+    end
+
+    def current_player_snapshot(game)
       return nil unless game.started?
 
       current_player = game.players[0]
@@ -15,7 +20,7 @@ module Jedna
         type: 'request_action',
         protocol_version: PROTOCOL_VERSION,
         state: {
-          your_id: current_player.identity.id,
+          your_id: current_player.identity.id.dup,
           hand: serialize_hand(current_player.hand),
           top_card: serialize_card(game.top_card),
           game_state: serialize_game_state(game.game_state),
@@ -44,19 +49,28 @@ module Jedna
     end
 
     def serialize_game_end(game, winner)
+      with_game_lock(game) { game_end_snapshot(game, winner) }
+    end
+
+    def game_end_snapshot(game, winner)
       scores = {}
       game.players.each do |player|
-        scores[player.identity.id] = player.hand.value
+        scores[player.identity.id.dup] = player.hand.value
       end
 
       {
         type: 'game_end',
-        winner: winner.identity.id,
+        winner: winner.identity.id.dup,
         scores: scores
       }
     end
+    private :current_player_snapshot, :game_end_snapshot
 
     private
+
+    def with_game_lock(game, &block)
+      game.respond_to?(:synchronize) ? game.synchronize(&block) : block.call
+    end
 
     def serialize_hand(hand)
       hand.map { |card| serialize_card(card) }
@@ -81,7 +95,7 @@ module Jedna
     def serialize_other_players(players)
       players.map do |player|
         {
-          id: player.identity.id,
+          id: player.identity.id.dup,
           card_count: player.hand.size
         }
       end
@@ -89,21 +103,8 @@ module Jedna
 
     def calculate_available_actions(game, playable_cards)
       actions = []
-      already_picked = game.already_picked
-      stacked_cards = game.stacked_cards
-
-      if already_picked
-        # After drawing a card, only the picked card can be played; otherwise pass.
-        game.picked_card
-        actions << 'play' unless playable_cards.empty?
-        actions << 'pass'
-        return actions
-      end
-
-      # Normal turn (haven't drawn yet)
       actions << 'play' unless playable_cards.empty?
-      actions << 'draw' if stacked_cards.zero?
-      actions << 'pass' if stacked_cards.positive?
+      actions << (game.already_picked || game.stacked_cards.positive? ? 'pass' : 'draw')
       actions
     end
 

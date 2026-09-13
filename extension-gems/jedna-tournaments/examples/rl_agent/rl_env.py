@@ -52,6 +52,7 @@ class JednaVsProcessEnv(gym.Env):
         )
         self.player_count = self.player_counts[0]
         self.proc: Optional[subprocess.Popen] = None
+        self._read_buffer = b""
         self.max_seconds = max_seconds
         self.reward_scale = reward_scale
         self.persistent_engine = persistent_engine
@@ -108,6 +109,7 @@ class JednaVsProcessEnv(gym.Env):
         self._discarded_games_before_first_action = 0
 
     def _popen(self) -> subprocess.Popen:
+        self._read_buffer = b""
         env = os.environ.copy()
         env["OPPONENT_CMD"] = self.opponent_cmd
         env["PLAYER_COUNT"] = str(self.player_count)
@@ -146,20 +148,18 @@ class JednaVsProcessEnv(gym.Env):
         return obs, info
 
     def step(self, action_idx: int):
-        assert self.proc is not None
         # If the engine ended or the episode deadline expired, truncate.
         if self._timed_out:
             return self._obs_from_state(self._last_state), 0.0, False, True, {"reason": "timeout"}
-        if self.proc.poll() is not None:
-            return self._obs_from_state(self._last_state), -1.0, True, False, {"reason": "ended"}
+        assert self.proc is not None
 
         # Send action
         action = self.space.to_protocol(action_idx, self._last_state or {})
         try:
             self._write(action)
         except BrokenPipeError:
-            # Engine ended between last read and now
-            return self._obs_from_state(self._last_state), -1.0, True, False, {"reason": "pipe"}
+            # The final result may still be waiting in stdout after exit.
+            pass
 
         # Read until next request or game_end
         while True:
@@ -235,32 +235,40 @@ class JednaVsProcessEnv(gym.Env):
         assert self.proc and self.proc.stdout
         import json as _json
 
-        # Poll-read until the episode deadline expires.
+        # Drain complete buffered lines before waiting for more bytes. Process
+        # exit is not EOF: a final game_end may still be in the pipe.
         while True:
             if self._timed_out:
                 return None
-            if self.proc.poll() is not None:
-                return None
-            timeout = self._read_timeout()
-            if timeout is None:
-                self._timed_out = True
-                self._terminate_proc()
-                return None
-            rlist, _, _ = select.select([self.proc.stdout], [], [], timeout)
-            if not rlist:
-                continue
-            line = self.proc.stdout.readline()
-            if not line:
-                return None
+            if b"\n" in self._read_buffer:
+                line, self._read_buffer = self._read_buffer.split(b"\n", 1)
+            else:
+                timeout = self._read_timeout()
+                if timeout is None:
+                    self._timed_out = True
+                    self._terminate_proc()
+                    return None
+                rlist, _, _ = select.select([self.proc.stdout], [], [], timeout)
+                if not rlist:
+                    continue
+                chunk = os.read(self.proc.stdout.fileno(), 65536)
+                if chunk:
+                    self._read_buffer += chunk
+                    continue
+                if not self._read_buffer:
+                    return None
+                line, self._read_buffer = self._read_buffer, b""
             s = line.strip()
             if not s:
                 continue
             # Filter out non-JSON noise; expect objects from engine
-            if not s.lstrip().startswith("{"):
+            if not s.startswith(b"{"):
                 continue
             try:
-                return _json.loads(s)
-            except Exception:
+                message = _json.loads(s)
+                if isinstance(message, dict):
+                    return message
+            except (ValueError, UnicodeError):
                 # Skip malformed lines while time remains in the episode.
                 continue
 

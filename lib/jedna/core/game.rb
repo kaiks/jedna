@@ -12,6 +12,7 @@ require_relative '../interfaces/renderer'
 require_relative '../interfaces/repository'
 
 module Jedna
+  # Mutable state and rules for a single match, including optional adapters.
   class Game
     attr_reader :players, :top_card, :game_state, :creator, :card_stack, :starting_stack, :first_player,
                 :stacked_cards, :already_picked, :picked_card
@@ -28,6 +29,7 @@ module Jedna
       @already_picked = false
       @locked = false #= can't join game
       @game_state = 0
+      @finished = false
       @start = nil
       @end = nil
       @creator = creator
@@ -48,6 +50,10 @@ module Jedna
       @game_state.positive?
     end
 
+    def finished?
+      @finished
+    end
+
     # Simple hook setter - allows external code to be notified when game ends
     def on_game_ended(&block)
       @on_game_ended = block
@@ -64,6 +70,10 @@ module Jedna
     end
 
     def start_game(stack = nil, first_player = nil)
+      if finished?
+        notify 'This game has finished. Create a new game to play again.'
+        return false
+      end
       if @players.length < 2
         notify 'You need at least two players to start a game.'
         return
@@ -120,6 +130,8 @@ module Jedna
     end
 
     def put_card_on_top(card)
+      return false unless started?
+
       accord_game_state_to_card_played card
       @locked = true
       @played_cards << card
@@ -127,6 +139,8 @@ module Jedna
     end
 
     def accord_game_state_to_card_played(card)
+      return false unless started?
+
       @stacked_cards += card.offensive_value
 
       if @game_state < card.offensive_value # this is stupid code but whatever
@@ -143,6 +157,8 @@ module Jedna
     end
 
     def next_turn(pass = false, first_player: nil)
+      return false unless started?
+
       manage_order_by_card @top_card, pass
       if first_player
         first_player_index = @players.index { |player| player.matches?(first_player) }
@@ -178,9 +194,11 @@ module Jedna
     end
 
     def deal_cards_to_player(p)
+      return false unless started?
+
       p.hand << @card_stack.pick(7)
       p.hand.each do |card|
-        db_save_card card, p.to_s, 1
+        db_save_card card, p.identity.id, 1
       end
       p.hand.sort! { |a, b| a.to_s <=> b.to_s }
     end
@@ -197,11 +215,13 @@ module Jedna
     end
 
     def give_cards_to_player(p, n, game_ending: false)
+      return CardStack.new unless started? || (game_ending && @card_stack && !finished?)
+
       check_for_empty_stack(n)
       @already_picked = true
       picked = @card_stack.pick(n)
       picked.each do |card|
-        db_save_card card, p.to_s, 1
+        db_save_card card, p.identity.id, 1
       end
 
       notify_player(p, "You draw #{n} card#{n > 1 ? 's' : ''}: #{@renderer.render_hand(picked)}")
@@ -223,6 +243,8 @@ module Jedna
     end
 
     def turn_pass
+      return false unless started?
+
       if @already_picked == false
         if @stacked_cards.zero?
           notify 'You have to pick a card first.'
@@ -236,17 +258,24 @@ module Jedna
     end
 
     def pick_single
+      return false unless started?
+
       if (@already_picked == false) && @stacked_cards.zero?
         @already_picked = true
         notify "#{@players[0]} draws a card."
-        @picked_card = (give_cards_to_player @players[0], 1)[0]
-        emit_action_required(:card_drawn) if started?
+        picked = give_cards_to_player(@players[0], 1)
+        return unless started?
+
+        @picked_card = picked[0]
+        emit_action_required(:card_drawn)
       else
         notify "Sorry #{@players[0]}, you can't pick now."
       end
     end
 
     def card_played(card)
+      return false unless started?
+
       @locked = true
       @played_cards << card
     end
@@ -259,7 +288,7 @@ module Jedna
       if @locked == false
         @players.push p
         @players.shuffle!
-        db_player_joins p.to_s unless @casual == 1
+        db_player_joins p.identity.id unless @casual == 1
         notify "#{p} joins the game"
       else
         notify "Sorry, it's not possible to join this game anymore."
@@ -267,12 +296,18 @@ module Jedna
     end
 
     def remove_player(p)
+      return false unless @players.include?(p)
+
       @players.delete p
-      stop_game p.to_s if @players.empty?
+      stop_game(p.identity.id) if @players.empty? || (started? && @players.length < 2)
     end
 
-    def stop_game(nick)
-      db_stop nick unless @casual == 1
+    def stop_game(player_id)
+      return false if finished?
+
+      terminate_game
+      db_stop(player_id.respond_to?(:identity) ? player_id.identity.id : player_id) unless @casual == 1
+      true
     end
 
     def rename_player(old_nick, new_nick)
@@ -296,7 +331,7 @@ module Jedna
     end
 
     def notify_player(p, text)
-      @notifier.notify_player(p.to_s, text)
+      @notifier.notify_player(p.identity.id, text)
     end
 
     def debug(text)
@@ -304,6 +339,8 @@ module Jedna
     end
 
     def playable_now?(card)
+      return false unless started? && card.is_a?(Card)
+
       # debug "[playable_now?] Checking if card #{card} is playable. Top card: #{@top_card}, Game state: #{@game_state}"
       return false unless card.plays_after?(@top_card)
 
@@ -340,76 +377,24 @@ module Jedna
     end
 
     def player_card_play(player, card, play_second = false)
-      debug "[player_card_play] Player: #{player}, Card: #{card}, Play second: #{play_second}, Already picked: #{@already_picked}, Picked card: #{@picked_card}"
-      if @players[0] == player
-        if card.nil?
-          notify 'You do not have that card.'
-          return false
-        end
-        if play_second && @already_picked
-          notify "Sorry, you can't play the picked card twice."
-          debug "[player_card_play] Attempted double play after picking. Card: #{card}"
-          return false
-        end
-        if playable_now? card
-          if card.wild? && card.color == :wild
-            notify 'Choose a color before playing a wild card.'
-            return false
-          end
-          # TODO: fix the wd4 stuff
-          if @already_picked == true && @picked_card.to_s != card.to_s
-            notify 'Sorry, you have to play the card you picked.'
-            debug "[player_card_play] Invalid card played after picking. Picked card: #{@picked_card}, Attempted: #{card}"
-            return false
-          end
-
-          put_card_on_top card
-          db_save_card card, player.to_s unless @casual == 1
-          player.hand.destroy(card)
-
-          if play_second == true
-            debug "[player_card_play] Double play attempt. Card: #{card}"
-            first_card = card
-            card = if first_card.wild?
-                     @players[0].hand.find { |candidate| candidate.figure == first_card.figure }
-                   else
-                     @players[0].hand.find_card(first_card.to_s)
-                   end
-            unless card.nil?
-              card.set_wild_color(first_card.color) if card.wild?
-              @double_play = true
-              notify '[Playing two cards]'
-              put_card_on_top card
-              db_save_card card, player.to_s unless @casual == 1
-              player.hand.destroy(card)
-              debug "[player_card_play] Double play successful. Card: #{card}"
-            end
-          end
-
-          # notify "#{player} played #{card}!"
-
-          check_for_number_of_cards_left player
-
-          # Check for instant loss condition (more than 35 cards)
-          losing_player = player_with_too_many_cards_exists?
-          if losing_player
-            finish_game_with_instant_loss(losing_player)
-          elsif player_with_no_cards_exists?
-            finish_game
-          else
-            next_turn
-          end
-          true
-        else
-          notify "Sorry #{player}, that card doesn't play."
-          card.unset_wild_color
-          false
-        end
-      else
-        notify "It's not your turn."
-        card.unset_wild_color
-        false
+      error = card_play_error(player, card, play_second)
+      if error
+        notify error
+        return false
       end
+
+      second_card = matching_second_card(player, card) if play_second
+      apply_played_card(player, card)
+      if second_card
+        second_card.set_wild_color(card.color) if second_card.wild?
+        @double_play = true
+        notify '[Playing two cards]'
+        apply_played_card(player, second_card)
+      end
+
+      check_for_number_of_cards_left player
+      complete_player_turn
+      true
     end
 
     def player_with_no_cards_exists?
@@ -427,9 +412,11 @@ module Jedna
     end
 
     def finish_game
+      return false unless started?
+
       @game_state = 0
       give_cards_to_player(@players[1], @stacked_cards, game_ending: true) if @stacked_cards.positive?
-      @stacked_cards = 0
+      terminate_game
 
       @total_score = @players.map { |p| p.hand.value }.inject(:+) # tally up points
 
@@ -439,7 +426,7 @@ module Jedna
       winning_string = "#{@players[0]} gains #{@total_score} points."
       if @casual != 1
         db_update_after_game_ended
-        player_stats = @repository.get_player_stats(@players[0].to_s)
+        player_stats = @repository.get_player_stats(@players[0].identity.id)
         total_score = player_stats[:total_score].to_i
         games_played = player_stats[:games].to_i
         winning_string += " For a total of #{total_score}, and a total of #{games_played} games played."
@@ -451,7 +438,9 @@ module Jedna
     end
 
     def finish_game_with_instant_loss(losing_player)
-      @game_state = 0
+      return false unless started?
+
+      terminate_game
 
       # Move losing player to the end and rotate so winner is first
       @players.delete(losing_player)
@@ -468,7 +457,7 @@ module Jedna
       winning_string = "#{@players[0]} gains #{@total_score} points."
       if @casual != 1
         db_update_after_game_ended
-        player_stats = @repository.get_player_stats(@players[0].to_s)
+        player_stats = @repository.get_player_stats(@players[0].identity.id)
         total_score = player_stats[:total_score].to_i
         games_played = player_stats[:games].to_i
         winning_string += " For a total of #{total_score}, and a total of #{games_played} games played."
@@ -479,10 +468,9 @@ module Jedna
       @on_game_ended&.call
     end
 
-    # todo
-    def end_game(_nick)
-      @game.end = Time.now.strftime('%F %T')
-      @game.save
+    # Compatibility entry point for cancelling a match without awarding points.
+    def end_game(player_id)
+      stop_game(player_id)
     end
 
     def check_for_number_of_cards_left(player)
@@ -508,10 +496,10 @@ module Jedna
 
       db_update_player_rank
 
-      winner_stats = @repository.get_player_stats(@players[0].to_s)
+      winner_stats = @repository.get_player_stats(@players[0].identity.id)
       @repository.update_game_ended(
         @game_id,
-        @players[0].to_s,
+        @players[0].identity.id,
         Time.now.strftime('%F %T'),
         @total_score,
         @players.size,
@@ -525,7 +513,7 @@ module Jedna
       @players.each do |p|
         won = (p == @players[0])
         points = won ? @total_score : 0
-        @repository.update_player_stats(p.to_s, won, points)
+        @repository.update_player_stats(p.identity.id, won, points)
       end
     end
 
@@ -539,6 +527,72 @@ module Jedna
     end
 
     private
+
+    def terminate_game
+      @game_state = 0
+      @finished = true
+      @locked = true
+      @stacked_cards = 0
+      @already_picked = false
+      @picked_card = nil
+      @double_play = false
+      @end = Time.now.strftime('%F %T')
+    end
+
+    def card_play_error(player, card, play_second)
+      return 'Double play must be true or false.' unless [true, false].include?(play_second)
+
+      card_owner_error(player, card) || drawn_play_error(card, play_second) ||
+        legal_play_error(player, card, play_second)
+    end
+
+    def card_owner_error(player, card)
+      return 'The game is not started.' unless started?
+      return "It's not your turn." unless @players.first.equal?(player)
+      unless card.is_a?(Card) && player.hand.any? { |candidate| candidate.equal?(card) }
+        return 'You do not have that card.'
+      end
+
+      nil
+    end
+
+    def drawn_play_error(card, play_second)
+      return unless @already_picked
+      return "Sorry, you can't play the picked card twice." if play_second
+
+      'Sorry, you have to play the card you picked.' unless @picked_card.equal?(card)
+    end
+
+    def legal_play_error(player, card, play_second)
+      return "Sorry #{player}, that card doesn't play." unless playable_now?(card)
+      return 'Choose a color before playing a wild card.' if card.wild? && card.color == :wild
+      return 'You do not have a matching second card.' if play_second && !matching_second_card(player, card)
+
+      nil
+    end
+
+    def matching_second_card(player, card)
+      player.hand.find do |candidate|
+        !candidate.equal?(card) && (card.wild? ? candidate.figure == card.figure : candidate == card)
+      end
+    end
+
+    def apply_played_card(player, card)
+      put_card_on_top(card)
+      db_save_card(card, player.identity.id)
+      player.hand.destroy(card)
+    end
+
+    def complete_player_turn
+      losing_player = player_with_too_many_cards_exists?
+      if losing_player
+        finish_game_with_instant_loss(losing_player)
+      elsif player_with_no_cards_exists?
+        finish_game
+      else
+        next_turn
+      end
+    end
 
     def emit_action_required(reason)
       @on_action_required_hooks.each do |hook|

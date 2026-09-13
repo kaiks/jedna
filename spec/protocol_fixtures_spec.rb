@@ -3,7 +3,6 @@
 require 'json'
 require 'spec_helper'
 
-# rubocop:disable Metrics/BlockLength
 RSpec.describe 'automated-play protocol fixtures' do
   subject(:serialized) do
     JSON.parse(JSON.generate(Jedna::GameStateSerializer.new.serialize_for_current_player(game)))
@@ -100,4 +99,3 @@ RSpec.describe 'automated-play protocol fixtures' do
     it { is_expected.to eq(fixture('request_action_wd4_war')) }
   end
 end
-# rubocop:enable Metrics/BlockLength

@@ -2,7 +2,6 @@
 
 require 'spec_helper'
 
-# rubocop:disable Metrics/BlockLength
 RSpec.describe Jedna::ActionExecutor do
   subject(:executor) { described_class.new(game) }
 
@@ -42,6 +41,34 @@ RSpec.describe Jedna::ActionExecutor do
 
       expect(result).to be_success
       expect(game.top_card.to_s).to eq('wb')
+    end
+
+    %w[w wd4].each do |code|
+      it "plays the drawn #{code} instead of recoloring an existing copy" do
+        existing = Jedna::Card.parse(code)
+        drawn = Jedna::Card.parse(code)
+        current_player.hand << [existing, Jedna::Card.parse('b1')]
+        game.card_stack.unshift(drawn)
+        executor.execute(action: 'draw')
+
+        result = executor.execute(action: 'play', card: code, wild_color: 'green')
+
+        expect(result).to be_success
+        expect(game.top_card).to equal(drawn)
+        expect(existing.color).to eq(:wild)
+        expect(alice.hand.any? { |card| card.equal?(drawn) }).to be(false)
+      end
+    end
+
+    it 'restores a wild color if the core rejects the play' do
+      wild = Jedna::Card.parse('w')
+      current_player.hand << wild
+      allow(game).to receive(:player_card_play).and_return(false)
+
+      result = executor.execute(action: 'play', card: 'w', wild_color: 'green')
+
+      expect(result.code).to eq('action_rejected')
+      expect(wild.color).to eq(:wild)
     end
 
     it 'plays matching cards as a double play' do
@@ -202,4 +229,3 @@ RSpec.describe Jedna::ActionExecutor do
     end
   end
 end
-# rubocop:enable Metrics/BlockLength

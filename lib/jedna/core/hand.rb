@@ -49,7 +49,7 @@ module Jedna
     end
 
     def destroy(card)
-      delete_at(index(card) || length)
+      delete_at(index { |candidate| candidate.equal?(card) } || index(card) || length)
     end
 
     def playable_after(card)

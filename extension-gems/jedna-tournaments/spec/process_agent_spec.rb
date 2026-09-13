@@ -29,7 +29,14 @@ RSpec.describe JednaTournaments::ProcessAgent do
 
     it 'raises error if already started' do
       agent.start
+      original_process = agent.instance_variable_get(:@wait_thread)
       expect { agent.start }.to raise_error(JednaTournaments::AgentError, /already running/)
+
+      expect(agent).to be_running
+      expect(agent.instance_variable_get(:@wait_thread)).to equal(original_process)
+      expect(agent.request_action({ your_id: 'test' })).to eq('action' => 'draw')
+      agent.stop
+      expect(original_process).not_to be_alive
     end
   end
 

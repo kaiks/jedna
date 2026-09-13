@@ -39,17 +39,26 @@ module Jedna
 
     def execute_play(action, player, state)
       card_code = value(action, 'card')
-      card = ProtocolCardLookup.find(player.hand, card_code)
+      candidates = @game.already_picked ? Hand.new([@game.picked_card].compact) : player.hand
+      card = ProtocolCardLookup.find(candidates, card_code)
       wild_color = value(action, 'wild_color')
       double_play = value(action, 'double_play')
       validation = validate_play(action, player, state, card)
       return validation if validation
 
+      original_color = card.color
       card.set_wild_color(wild_color) if card.wild?
       played = @game.player_card_play(player, card, double_play == true)
-      return ActionResult.failure('action_rejected', 'The game rejected the play', 'play') unless played
+      unless played
+        restore_wild_color(card, original_color) if card.wild?
+        return ActionResult.failure('action_rejected', 'The game rejected the play', 'play')
+      end
 
       ActionResult.success('play')
+    end
+
+    def restore_wild_color(card, color)
+      color == :wild ? card.unset_wild_color : card.set_wild_color(color)
     end
 
     def execute_draw(*)

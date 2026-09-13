@@ -3,7 +3,6 @@
 require 'spec_helper'
 require_relative '../examples/run_single_game'
 
-# rubocop:disable Metrics/BlockLength
 RSpec.describe SingleGameRunner do
   describe '#run_game_loop' do
     it 'drives turns explicitly after starting the game' do
@@ -59,4 +58,3 @@ RSpec.describe SingleGameRunner do
     end
   end
 end
-# rubocop:enable Metrics/BlockLength

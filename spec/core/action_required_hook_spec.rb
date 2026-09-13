@@ -2,7 +2,6 @@
 
 require 'spec_helper'
 
-# rubocop:disable Metrics/BlockLength
 RSpec.describe Jedna::Game, '#on_action_required' do
   let(:game) { TestJednaGame.new('creator', 1) }
   let(:alice) { Jedna::Player.new('Alice') }
@@ -122,4 +121,3 @@ RSpec.describe Jedna::Game, '#on_action_required' do
     expect(read_completed.pop).not_to be_nil
   end
 end
-# rubocop:enable Metrics/BlockLength

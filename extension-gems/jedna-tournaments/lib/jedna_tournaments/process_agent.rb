@@ -21,14 +21,7 @@ module JednaTournaments
     def start
       raise AgentError, 'Agent already running' if running?
 
-      cleanup_process_resources if @wait_thread
-      @stdin, @stdout, @stderr, @wait_thread = Open3.popen3(@command)
-      @stdin.sync = true
-      @stdout.sync = true
-      start_stderr_drain
-    rescue StandardError => e
-      cleanup_process_resources
-      raise AgentError, "Failed to start agent: #{e.message}"
+      start_process
     end
 
     def stop(graceful: true)
@@ -78,6 +71,8 @@ module JednaTournaments
     rescue Timeout::Error
       stop(graceful: false)
       raise TimeoutError, "Agent did not respond within #{timeout} seconds"
+    rescue Errno::EPIPE, IOError => e
+      raise AgentError, "Agent connection closed: #{e.message}"
     end
 
     def notify(message)
@@ -98,6 +93,17 @@ module JednaTournaments
     end
 
     private
+
+    def start_process
+      cleanup_process_resources if @wait_thread
+      @stdin, @stdout, @stderr, @wait_thread = Open3.popen3(@command)
+      @stdin.sync = true
+      @stdout.sync = true
+      start_stderr_drain
+    rescue StandardError => e
+      stop(graceful: false)
+      raise AgentError, "Failed to start agent: #{e.message}"
+    end
 
     def start_stderr_drain
       @stderr_thread = Thread.new do
