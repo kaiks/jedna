@@ -129,6 +129,15 @@ end
 
 The arena runner uses its own YAML configuration.
 
+The YAML runner awards a forfeit to the opponent when an agent times out,
+cannot start, crashes, or returns an invalid/illegal action. This also applies
+to the post-draw decision. `ConfiguredTournamentRunner#outcomes` records each
+completed match with a winner and reason (`:game_end`, `:timeout`,
+`:agent_error`, or `:invalid_action`); forfeits include the loser and diagnostic
+message. Forfeit notifications have empty scores because no engine score was
+awarded. Engine errors and the overall game deadline abort the run and do not
+award wins or silently skip matches. Agents are cleaned up in either case.
+
 ## Development
 
 ### Running Tests

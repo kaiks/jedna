@@ -33,7 +33,7 @@ When it's an agent's turn, the game sends a JSON object describing the current g
       {"id": "player3", "card_count": 7}
     ],
     "available_actions": ["play", "draw"],
-    "playable_cards": ["r2"]
+    "playable_cards": ["r2", "wd4"]
   }
 }
 ```
@@ -62,11 +62,12 @@ The agent must respond with a JSON object specifying the action:
 
 #### Play a Card
 
+For a hand containing two `r2` cards, a double-play response is:
+
 ```json
 {
   "action": "play",
   "card": "r2",
-  "wild_color": "blue",
   "double_play": true
 }
 ```
@@ -74,6 +75,17 @@ The agent must respond with a JSON object specifying the action:
 - `wild_color`: Required only when playing wild cards ("red", "blue", "green", "yellow")
 - `double_play` (optional): Requests that an identical second card be played in
   the same turn. The flag must be supplied on the original play.
+  A matching second card must be present; otherwise the whole action is rejected.
+
+A Wild play supplies its color separately:
+
+```json
+{"action": "play", "card": "wd4", "wild_color": "blue"}
+```
+
+Do not send `wild_color` for a non-Wild card. After drawing, the engine resolves
+the actual drawn card, including when the hand already contains an identical
+Wild. A post-draw response cannot request double play.
 
 #### Draw a Card
 
@@ -142,24 +154,43 @@ Cards are represented as strings:
 - Wild: `w` (wild)
 - Wild Draw Four: `wd4` (wild draw four)
 
+Unplayed Wilds in protocol hands and responses use `w` or `wd4`. A played Wild
+in `top_card` carries the selected color as a suffix: `wr`, `wg`, `wb`, `wy`,
+or `wd4r`, `wd4g`, `wd4b`, `wd4y`. For example, `wd4b` means a Wild Draw Four
+with blue selected. A bare `w` can be the initial top card before any color is
+chosen; the normal color restriction is then unrestricted.
+
+The suffix is state information; choose a color in a response with `wild_color`,
+not by adding a suffix to an uncolored card code. Colors must be the full,
+lowercase names. Automation hosts should leave Wilds in hands uncolored and
+let `ActionExecutor` apply the selection. Direct Ruby callers instead obtain
+the actual Wild from the player's hand, call `set_wild_color`, and then play
+that same object. The legacy Ruby spelling `ww` is not a protocol card code.
+
+Both identical Wilds in a double play receive the same selected color. Wilds
+recycled from the discard pile lose their selected color before being drawn.
+
 Colors: `r` (red), `b` (blue), `g` (green), `y` (yellow)
 
 ## Game Rules Summary
 
 ### War States
 
-- **+2 War**: The next player may respond with another +2, a Wild Draw Four,
-  or a reverse matching the current color; otherwise they draw the accumulated
-  cards.
-- **WD4 War**: The next player may respond with another Wild Draw Four or a
-  reverse matching the selected color; otherwise they draw the accumulated
-  cards.
+- **+2 War**: The permitted figures are +2, Reverse, and Wild Draw Four.
+- **WD4 War**: The permitted figures are Reverse and Wild Draw Four.
+- **Normal matching still applies**: non-Wild cards must match the current top
+  card by color or figure. A Reverse becomes the top card while the war
+  continues. Thus `r+2 → rr → br` is legal, but `r+2 → rr → b+2` is not.
+- Instead of responding, a player may pass to draw the accumulated penalty.
 - Wars stack: multiple +2 or wd4 cards accumulate the penalty
 
 ### Special Rules
 
 - **Picked Card Rule**: If you draw a card and it's playable, you may play it same turn
 - **Pass Rule**: You can only pass after drawing a card (or being forced to draw)
+- **Double Reverse**: Normally preserves direction and gives the same player
+  another turn. With the optional two-player Reverse-as-Skip rule, a double
+  Reverse passes to the opponent instead.
 
 ## Example Agent Implementation
 
@@ -310,6 +341,8 @@ calling the game API. It returns an immutable `Jedna::ActionResult` with
 `success?`, `error?`, `code`, `message`, and `action`; expected protocol errors
 are results rather than exceptions. When the game includes `ThreadSafeGame`,
 validation and application run together inside the game's reentrant monitor.
+`GameStateSerializer` also acquires that monitor for each complete action or
+game-end snapshot. Returned identity strings are detached from the live players.
 
 Games also expose `on_action_required` for event-driven hosts:
 
@@ -329,6 +362,12 @@ performing agent I/O while the game monitor is held.
 
 - Agents should respond within 5 seconds (configurable in tournaments)
 - Agents that timeout or crash forfeit the game
+- The YAML tournament runner also forfeits invalid responses and illegal
+  actions, including the decision after drawing. Its `outcomes` reader records
+  the winner and reason (`game_end`, `timeout`, `agent_error`, or `invalid_action`).
+  Infrastructure/engine exceptions and the overall game deadline abort the run
+  without awarding a winner. Debugging and training tools may use their own
+  explicit recovery policies.
 - Agents should not output anything except valid JSON responses
 - Debug output should go to stderr, not stdout
 

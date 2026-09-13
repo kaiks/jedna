@@ -61,6 +61,30 @@ end
 `creator, casual, notifier, renderer, repository`. The casual flag is the
 integer `1` for casual mode and `0` for persistent mode.
 
+Each `Game` instance represents one match. `finished?` becomes true after a win,
+instant loss, or cancellation; `started?` then remains false. Drawing, passing,
+playing, and starting the same instance again cannot reopen it. Create a new
+`Game` and new `Player` objects for another match.
+
+`stop_game(player_id)` cancels without awarding points; `end_game(player_id)`
+is a compatibility entry point for the same operation. Cancellation is
+idempotent. Removing players cancels an active game when fewer than two remain;
+removing the last player from a waiting game also cancels it. `on_game_ended`
+continues to report wins and instant losses, not cancellations.
+
+The direct play API requires the actual `Player` registered in the game and the
+actual `Card` object in that player's hand. A freshly parsed copy is not a hand
+card. After drawing, only the actual drawn card may be played. An unavailable
+double play rejects the entire action. Protocol hosts can use `ActionExecutor`
+to resolve card codes and apply these checks.
+
+Private notifications, joins, card actions, winners, and player statistics use
+`player.identity.id`; rendered messages use the display name. This is unchanged
+for nick-based identities but changes keys for UUID identities. Hosts that
+previously stored UUID players under display names must migrate those records
+using their own identity mapping before combining old and new statistics.
+Display-name collisions cannot be migrated automatically without that mapping.
+
 ## Interfaces
 
 Jedna! provides several interfaces to customize game behavior:

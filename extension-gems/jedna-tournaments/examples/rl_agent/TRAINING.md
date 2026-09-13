@@ -258,6 +258,15 @@ against Crushing on a fresh 5,000-game seed range. It selects the held-out
 leader from that screen and validates it on a second fresh range against both
 Crushing and every other checkpoint.
 
+The log parser supports both legacy single-result lines and the current
+per-table lines followed by a `macro_rate` summary. It ranks multiplayer log
+results by the unweighted mean of the per-table win rates, recomputed from the
+counts rather than the rounded percentages. The summary must list all tables
+for which counts were emitted; incomplete evaluations do not replace the last
+complete result for a training step. Screening and confirmation below remain
+two-player matches, even when the provisional log leader used a multiplayer
+macro-average.
+
 This legacy round-robin tooling measures two-player strength only. Use
 `eval_sb3 --player-counts 2-10` as the multiplayer promotion gate.
 

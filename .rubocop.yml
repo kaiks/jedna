@@ -1,0 +1,8 @@
+AllCops:
+  TargetRubyVersion: 4.0
+  # Review pending cops explicitly as part of the gradual lint cleanup.
+  NewCops: disable
+  SuggestExtensions: false
+
+# Keep default rule thresholds until the proposals in docs/rubocop-review.md
+# are approved. Directory-specific exceptions live in the nested configs.
